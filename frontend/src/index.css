@@ -16,6 +16,7 @@ body {
 .container {
     max-width: 800px;
     width: 100%;
+    place-items: center;
    
     
 }
@@ -54,6 +55,10 @@ input {
     margin-bottom: 20px;
     justify-content: center;
     align-items: center;
+    width: 150%;
+    
+   
+    
 }
 
 .form-card h3 {
