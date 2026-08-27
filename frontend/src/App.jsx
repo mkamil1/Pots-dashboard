@@ -4,7 +4,6 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react
 const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
 const API_BASE = 'http://localhost:5002/api';
 
-// --- PAGE D'AUTHENTIFICATION (Connexion / Inscription) ---
 
 function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   const [name, setName] = useState('');
@@ -14,7 +13,6 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Si l'utilisateur est déjà connecté, redirection automatique
   if (token) return <Navigate to="/dashboard" replace />;
 
   const handleAuth = async (e) => {
@@ -33,7 +31,7 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur d'authentification");
 
-      // Sauvegarde dans le localStorage
+      
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setCurrentUser(data.user);
@@ -47,11 +45,11 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
     <div className="container">
       <h1>Authentification</h1>
       <div className="card form-card">
-        <div style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
-          <Link to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+        <div style={{ justifyContent:'center', display: 'flex', gap: 10, marginBottom: 15 }}>
+          <Link style={{ textDecoration:'none'}}to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Connexion
           </Link>
-          <Link to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+          <Link style={{ textDecoration:'none'}} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Inscription
           </Link>
         </div>
@@ -90,7 +88,7 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   );
 }
 
-// --- DASHBOARD (Composant gérant Admin et User) ---
+
 
 function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   const [userId, setUserId] = useState('');
