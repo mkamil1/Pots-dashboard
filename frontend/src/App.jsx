@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
 const API_BASE = 'http://localhost:5002/api';
 
 export default function App() {
-  
-  const [token, setToken] = useState('');
+  // Stockage et récupération du token dans localStorage
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [currentUser, setCurrentUser] = useState(null);
 
-
+  // Auth Form State
   const [isSignUp, setIsSignUp] = useState(false);
   const [authName, setAuthName] = useState('');
   const [authEmail, setAuthEmail] = useState('');
@@ -16,10 +16,23 @@ export default function App() {
   const [authRole, setAuthRole] = useState('user');
   const [authError, setAuthError] = useState('');
 
+  // Form inputs (Dashboard Admin)
   const [userId, setUserId] = useState('');
   const [output, setOutput] = useState('...');
 
+  // Récupération automatique du profil si un token existe lors du rafraîchissement
+  useEffect(() => {
+    if (token) {
+      fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => (res.ok ? res.json() : Promise.reject()))
+        .then((user) => setCurrentUser(user))
+        .catch(() => handleLogout());
+    }
+  }, [token]);
 
+  // Réinitialiser les champs du formulaire d'auth
   const resetAuthFields = () => {
     setAuthName('');
     setAuthEmail('');
@@ -46,6 +59,8 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur d'authentification");
 
+      // Sauvegarde du token dans localStorage
+      localStorage.setItem('token', data.token);
       setToken(data.token);
       setCurrentUser(data.user);
       resetAuthFields();
@@ -56,6 +71,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    // Nettoyage de localStorage à la déconnexion
+    localStorage.removeItem('token');
     setToken('');
     setCurrentUser(null);
     resetAuthFields();
@@ -67,7 +84,7 @@ export default function App() {
     resetAuthFields();
   };
 
-  
+  // --- FONCTIONS DU DASHBOARD ---
 
   const getHour = async () => {
     try {
@@ -209,6 +226,7 @@ export default function App() {
     }
   };
 
+  // L'Admin ne peut PAS s'auto-supprimer
   const deleteUserById = async (id) => {
     const target = Number(id || userId);
     if (!target) {
@@ -267,11 +285,10 @@ export default function App() {
     }
   };
 
-
   if (!token) {
     return (
       <div className="container">
-        <h1>Dashboard </h1>
+        <h1>Authentification</h1>
         <div className="card form-card">
           <div style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
             <button className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`} onClick={() => switchAuthMode(false)}>
@@ -338,7 +355,7 @@ export default function App() {
     );
   }
 
-
+  // --- RENDU ESPACE USER ---
   if (currentUser?.role === 'user') {
     return (
       <div className="container">
@@ -366,11 +383,11 @@ export default function App() {
     );
   }
 
- 
+  // --- RENDU ESPACE ADMIN ---
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Espace Admin</h1>
+        <h1>Dashboard Admin</h1>
         <button className="btn btn-out" onClick={handleLogout}>Déconnexion</button>
       </div>
 
