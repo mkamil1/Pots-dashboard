@@ -303,12 +303,7 @@ export default function App() {
             {isSignUp && (
               <>
                 <label>Nom</label>
-                <input
-                  type="text"
-                  value={authName}
-                  onChange={(e) => setAuthName(e.target.value)}
-                  placeholder="Votre nom"
-                  required
+                <input type="text" value={authName} onChange={(e) => setAuthName(e.target.value)} placeholder="Votre nom" required
                 />
               </>
             )}
