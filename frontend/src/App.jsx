@@ -4,11 +4,70 @@ const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstm
 const API_BASE = 'http://localhost:5002/api';
 
 export default function App() {
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
-  const [postId, setPostId] = useState('');
+  
+  const [token, setToken] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+
+
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authName, setAuthName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authRole, setAuthRole] = useState('user');
+  const [authError, setAuthError] = useState('');
+
   const [userId, setUserId] = useState('');
   const [output, setOutput] = useState('...');
+
+
+  const resetAuthFields = () => {
+    setAuthName('');
+    setAuthEmail('');
+    setAuthPassword('');
+    setAuthRole('user');
+    setAuthError('');
+  };
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    const endpoint = isSignUp ? '/auth/signup' : '/auth/login';
+    const body = isSignUp
+      ? { name: authName, email: authEmail, password: authPassword, role: authRole }
+      : { email: authEmail, password: authPassword };
+
+    try {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur d'authentification");
+
+      setToken(data.token);
+      setCurrentUser(data.user);
+      resetAuthFields();
+      setOutput('Connecté avec succès.');
+    } catch (err) {
+      setAuthError(err.message);
+    }
+  };
+
+  const handleLogout = () => {
+    setToken('');
+    setCurrentUser(null);
+    resetAuthFields();
+    setOutput('...');
+  };
+
+  const switchAuthMode = (signUpMode) => {
+    setIsSignUp(signUpMode);
+    resetAuthFields();
+  };
+
+  
 
   const getHour = async () => {
     try {
@@ -44,8 +103,8 @@ export default function App() {
       setOutput(
         <ul className="user-list">
           {users.map((u) => (
-            <li key={u.id} className="user-item" onClick={() => deleteUserById(u.id)} title="Cliquer pour supprimer cet user">
-              <span className="badge">User {u.id}</span>
+            <li key={u.id} className="user-item" onClick={() => deleteUserById(u.id)} title="Cliquer pour supprimer cet utilisateur">
+              <span className="badge">User {u.id} ({u.role || 'user'})</span>
               <strong className="user-name">{u.name}</strong>{' '}
               <span className="user-email">({u.email})</span>
             </li>
@@ -84,7 +143,7 @@ export default function App() {
   };
 
   const getUserPosts = async (id) => {
-    const targetId = id || userId;
+    const targetId = id || userId || currentUser?.id;
     if (!targetId) {
       setOutput(<p className="warning-msg">Saisissez un ID Utilisateur.</p>);
       return;
@@ -115,22 +174,33 @@ export default function App() {
     }
   };
 
-  const createDefaultPostForUser = async (id) => {
+  // Création de Post automatique (sans besoin de titre ni de contenu)
+  const createPost = async () => {
+    const targetUserId = userId || currentUser?.id;
+    const defaultTitle = `Post pour utilisateur ${targetUserId}`;
+    const defaultContent = `Créé automatiquement à ${new Date().toLocaleString()}`;
+
     try {
       const res = await fetch(`${API_BASE}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: Number(id), title: `Post for user ${id}`, content: `Created at ${new Date().toISOString()}` }),
+        body: JSON.stringify({
+          user_id: Number(targetUserId),
+          title: defaultTitle,
+          content: defaultContent,
+        }),
       });
       const data = await res.json();
 
       if (res.ok) {
         setOutput(
           <div className="result-card success">
-            <strong>Post créé :</strong> Post ID : <strong>{data.id}</strong> | User ID : <strong>{data.user_id}</strong>
+            <strong>Post créé avec succès !</strong><br />
+            Post ID : <strong>{data.id}</strong> | User ID : <strong>{data.user_id}</strong>
           </div>
         );
-        getAllPosts();
+        if (currentUser?.role === 'admin') getAllPosts();
+        else getUserPosts(currentUser?.id);
       } else {
         setOutput(<p className="error-msg">Erreur : {data.error}</p>);
       }
@@ -140,9 +210,18 @@ export default function App() {
   };
 
   const deleteUserById = async (id) => {
-    const target = id || userId;
+    const target = Number(id || userId);
     if (!target) {
-      setOutput(<p className="warning-msg">Saisissez un ID Utilisateur pour suppression.</p>);
+      setOutput(<p className="warning-msg">Saisissez un ID Utilisateur pour la suppression.</p>);
+      return;
+    }
+
+    if (target === currentUser?.id) {
+      setOutput(
+        <div className="result-card error">
+          <strong>Action interdite :</strong> Vous ne pouvez pas supprimer votre propre compte administrateur.
+        </div>
+      );
       return;
     }
 
@@ -159,7 +238,6 @@ export default function App() {
           </div>
         );
         getUsers();
-        getAllPosts();
       } else {
         setOutput(<p className="error-msg">Erreur : {data.error}</p>);
       }
@@ -179,7 +257,8 @@ export default function App() {
             <strong>{data.message || 'Post supprimé.'}</strong>
           </div>
         );
-        getAllPosts();
+        if (currentUser?.role === 'admin') getAllPosts();
+        else getUserPosts(currentUser?.id);
       } else {
         setOutput(<p className="error-msg">Erreur : {data.error}</p>);
       }
@@ -188,215 +267,134 @@ export default function App() {
     }
   };
 
-  const modifyUser = async () => {
-    if (!userName || !userEmail) {
-      setOutput(<p className="warning-msg">Veuillez fournir le nom et l'email de l'utilisateur existant à modifier.</p>);
-      return;
-    }
 
-    try {
-      const resUsers = await fetch(`${API_BASE}/users`);
-      const users = await resUsers.json();
-      const found = users.find((u) => u.name === userName && u.email === userEmail);
-      if (!found) {
-        setOutput(
-          <div className="result-card warning">
-            Utilisateur introuvable. Voulez-vous créer cet utilisateur ?<br />
-            <button className="btn btn-primary" onClick={() => createUser(true)}>Créer</button>
+  if (!token) {
+    return (
+      <div className="container">
+        <h1>Dashboard </h1>
+        <div className="card form-card">
+          <div style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
+            <button className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`} onClick={() => switchAuthMode(false)}>
+              Connexion
+            </button>
+            <button className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`} onClick={() => switchAuthMode(true)}>
+              Inscription
+            </button>
           </div>
-        );
-        return;
-      }
 
-      const newName = prompt('Nouveau nom (laisser vide pour ne pas changer)', found.name) || found.name;
-      const newEmail = prompt('Nouvel email (laisser vide pour ne pas changer)', found.email) || found.email;
+          <form onSubmit={handleAuth} autoComplete="off">
+            {isSignUp && (
+              <>
+                <label>Nom</label>
+                <input
+                  type="text"
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                  placeholder="Votre nom"
+                  required
+                />
+              </>
+            )}
+            <label>Email</label>
+            <input
+              type="email"
+              value={authEmail}
+              onChange={(e) => setAuthEmail(e.target.value)}
+              placeholder="Email"
+              required
+            />
 
-      const res = await fetch(`${API_BASE}/users/${found.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName, email: newEmail }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setOutput(<div className="result-card success">Utilisateur modifié : {data.name} ({data.email})</div>);
-        getUsers();
-      } else setOutput(<p className="error-msg">Erreur : {data.error}</p>);
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
+            <label>Mot de passe</label>
+            <input
+              type="password"
+              value={authPassword}
+              onChange={(e) => setAuthPassword(e.target.value)}
+              placeholder="Mot de passe"
+              required
+            />
 
-  const createUser = async (forceCreate = false) => {
-    if (!userName || !userEmail) {
-      setOutput(<p className="warning-msg">Veuillez remplir le nom et l'email.</p>);
-      return;
-    }
+            {isSignUp && (
+              <>
+                <label>Rôle</label>
+                <select
+                  value={authRole}
+                  onChange={(e) => setAuthRole(e.target.value)}
+                  style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 6, border: '1px solid #cbd5e0' }}
+                >
+                  <option value="user">Utilisateur (User)</option>
+                  <option value="admin">Administrateur (Admin)</option>
+                </select>
+              </>
+            )}
 
-    try {
-      const resUsers = await fetch(`${API_BASE}/users`);
-      const users = await resUsers.json();
-      const found = users.find((u) => u.name === userName && u.email === userEmail);
+            {authError && <p className="error-msg" style={{ color: '#e53e3e', marginBottom: 10 }}>{authError}</p>}
 
-      if (found && !forceCreate) {
-        
-        setOutput(
-          <div className="result-card">
-            <strong>Utilisateur trouvé :</strong> {found.id} — {found.name} ({found.email})
-            <div style={{marginTop:8, display:'flex', gap:8}}>
-              <button className="btn btn-secondary" onClick={() => createDefaultPostForUser(found.id)}>Créer un post </button>
-              <button className="btn btn-info" onClick={() => getUserPosts(found.id)}>Lister ses posts</button>
-              <button className="btn btn-danger" onClick={() => setOutput(<p className="small">Pour supprimer un post : lister les posts puis cliquer sur le post à supprimer.</p>)}>
-                Supprimer un post
-              </button>
-            </div>
-          </div>
-        );
-        return;
-      }
+            <button type="submit" className="btn btn-primary" style={{ marginTop: 10, width: '100%' }}>
+              {isSignUp ? "S'inscrire" : 'Se connecter'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
-     
-      const res = await fetch(`${API_BASE}/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: userName, email: userEmail }),
-      });
-      const data = await res.json();
 
-      if (res.ok) {
-        setOutput(
-          <div className="result-card success">
-            <strong>Utilisateur créé / post ajouté !</strong><br />
-            User ID : <strong>{data.id}</strong> | Post ID : <strong>{data.post_id}</strong> | Nom : {data.name} ({data.email})
-          </div>
-        );
-        getUsers();
-      } else {
-        setOutput(<p className="error-msg">Erreur : {data.error}</p>);
-      }
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
+  if (currentUser?.role === 'user') {
+    return (
+      <div className="container">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1>Espace Utilisateur</h1>
+          <button className="btn btn-out" onClick={handleLogout}>Déconnexion</button>
+        </div>
 
-  const updateUserPut = async () => {
-    if (!userId || !userName || !userEmail) {
-      setOutput(<p className="warning-msg">Saisissez l'ID Utilisateur, le Nom et l'Email .</p>);
-      return;
-    }
+        <div className="card form-card">
+          <h3>Profil : {currentUser.name}</h3>
+          <p>Email : {currentUser.email} | Rôle : <strong>Utilisateur</strong> | ID : {currentUser.id}</p>
+        </div>
 
-    try {
-      const res = await fetch(`${API_BASE}/users/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: userName, email: userEmail }),
-      });
-      const data = await res.json();
+        <div className="button-grid">
+          <button className="btn btn-info" onClick={() => getUserPosts(currentUser.id)}>Mes Posts</button>
+          <button className="btn btn-primary" onClick={createPost}>Créer un Post</button>
+          <button className="btn btn-secondary" onClick={getHour}>Obtenir l'heure (Postman API)</button>
+        </div>
 
-      if (res.ok) {
-        setOutput(
-          <div className="result-card success">
-            <strong>Utilisateur {userId} remplacé avec succès !</strong><br />
-            Nom : {data.name} | Email : {data.email}
-          </div>
-        );
-      } else {
-        setOutput(<p className="error-msg">Erreur : {data.error}</p>);
-      }
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
+        <div className="card response-card">
+          <h3>Résultat</h3>
+          <div id="output" className="output-box">{output}</div>
+        </div>
+      </div>
+    );
+  }
 
-  const updateUserPatch = async () => {
-    if (!userId) {
-      setOutput(<p className="warning-msg">Saisissez un ID Utilisateur pour PATCH.</p>);
-      return;
-    }
-
-    const bodyData = {};
-    if (userName) bodyData.name = userName;
-    if (userEmail) bodyData.email = userEmail;
-
-    try {
-      const res = await fetch(`${API_BASE}/users/${userId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bodyData),
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setOutput(
-          <div className="result-card success">
-            <strong>Utilisateur {userId} modifié avec succès !</strong><br />
-            Nom : {data.name} | Email : {data.email}
-          </div>
-        );
-      } else {
-        setOutput(<p className="error-msg">Erreur : {data.error}</p>);
-      }
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
-
-  const deleteUserByPost = async () => {
-    if (!postId) {
-      setOutput(<p className="warning-msg">Saisissez un ID de post pour supprimer l'utilisateur.</p>);
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/users/by-post/${postId}`, { method: 'DELETE' });
-      const data = await res.json();
-
-      if (res.ok) {
-        setOutput(
-          <div className="result-card error">
-            <strong>{data.message}</strong>
-          </div>
-        );
-        // refresh users and posts
-        getUsers();
-        getAllPosts();
-      } else {
-        setOutput(<p className="error-msg">Erreur : {data.error}</p>);
-      }
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
-
+ 
   return (
     <div className="container">
-      <h1>Dashboard </h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Espace Admin</h1>
+        <button className="btn btn-out" onClick={handleLogout}>Déconnexion</button>
+      </div>
 
       <div className="card form-card">
-        <h3>Gestion des utilisateurs</h3>
-        <div className="grid-2">
-          <div>
-            <label>Nom</label>
-            <input placeholder="Nom" type="text" id="userName" value={userName} onChange={(e) => setUserName(e.target.value)} />
-            <label>Email</label>
-            <input placeholder="Email" type="email" id="userEmail" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} />
-            <label>User ID (pour afficher posts)</label>
-            <input placeholder="User ID" type="number" id="userId" value={userId} onChange={(e) => setUserId(e.target.value)} />
-          </div>
+        <h3>Gestion & Création de Posts (Admin)</h3>
+        <p style={{ fontSize: '0.9rem', color: '#666' }}>Connecté en tant que <strong>{currentUser?.name}</strong> (ID: {currentUser?.id})</p>
+        <div>
+          <label>User ID cible (laisser vide pour votre propre compte)</label>
+          <input placeholder={`Ex: ${currentUser?.id}`} type="number" value={userId} onChange={(e) => setUserId(e.target.value)} />
         </div>
       </div>
 
       <div className="button-grid">
-        <button className="btn btn-primary" onClick={() => createUser(false)}>Créer / Vérifier</button>
-        <button className="btn btn-secondary" onClick={modifyUser}>Modifier</button>
-        <button className="btn btn-info" onClick={() => getUserPosts()}>liste des posts du user</button>
-        <button className="btn btn-outline" onClick={getUsers}>liste de tous les users</button>
+        <button className="btn btn-primary" onClick={createPost}>Créer un Post</button>
+        <button className="btn btn-info" onClick={() => getUserPosts()}>Posts de l'utilisateur cible</button>
+        <button className="btn btn-outline" onClick={getUsers}>Liste des utilisateurs</button>
+        <button className="btn btn-posts" onClick={getAllPosts}>Tous les posts</button>
+        <button className="btn btn-danger" onClick={() => deleteUserById(userId)}>Supprimer l'utilisateur cible</button>
+        <button className="btn btn-secondary" onClick={getHour}>Obtenir l'heure</button>
       </div>
 
       <div className="card response-card">
         <h3>Résultat</h3>
-        <div id="output" className="output-box">
-          {output}
-        </div>
+        <div id="output" className="output-box">{output}</div>
       </div>
     </div>
   );
