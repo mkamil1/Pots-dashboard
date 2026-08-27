@@ -59,7 +59,7 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur d'authentification");
 
-      // Sauvegarde du token dans localStorage
+     
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setCurrentUser(data.user);
@@ -71,7 +71,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    // Nettoyage de localStorage à la déconnexion
+    
     localStorage.removeItem('token');
     setToken('');
     setCurrentUser(null);
@@ -84,7 +84,7 @@ export default function App() {
     resetAuthFields();
   };
 
-  // --- FONCTIONS DU DASHBOARD ---
+  
 
   const getHour = async () => {
     try {
@@ -191,7 +191,7 @@ export default function App() {
     }
   };
 
-  // Création de Post automatique (sans besoin de titre ni de contenu)
+  
   const createPost = async () => {
     const targetUserId = userId || currentUser?.id;
     const defaultTitle = `Post pour utilisateur ${targetUserId}`;
@@ -226,7 +226,7 @@ export default function App() {
     }
   };
 
-  // L'Admin ne peut PAS s'auto-supprimer
+  
   const deleteUserById = async (id) => {
     const target = Number(id || userId);
     if (!target) {
@@ -350,7 +350,7 @@ export default function App() {
     );
   }
 
-  // --- RENDU ESPACE USER ---
+  
   if (currentUser?.role === 'user') {
     return (
       <div className="container">
@@ -378,7 +378,6 @@ export default function App() {
     );
   }
 
-  // --- RENDU ESPACE ADMIN ---
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
