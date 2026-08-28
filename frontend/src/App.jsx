@@ -4,7 +4,6 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react
 const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
 const API_BASE = 'http://localhost:5002/api';
 
-// --- PAGE D'AUTHENTIFICATION ---
 
 function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   const [name, setName] = useState('');
@@ -45,11 +44,11 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
     <div className="container">
       <h1>Authentification</h1>
       <div className="card form-card">
-        <div style={{ justifyContent: 'center',display:'flex', gap: 10, marginBottom: 15 }}>
-          <Link style={{ textDecoration: 'none'}} to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+        <div style={{ justifyContent:'center', display: 'flex', gap: 10, marginBottom: 15 }}>
+          <Link style={{textDecoration :'none'}} to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Connexion
           </Link>
-          <Link style={{ textDecoration: 'none'}} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+          <Link style={{textDecoration :'none'}} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Inscription
           </Link>
         </div>
@@ -58,7 +57,7 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
           {isSignUp && (
             <>
               <label>Nom</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Votre nom" required />
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom" required />
             </>
           )}
           <label>Email</label>
@@ -77,7 +76,7 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
             </>
           )}
 
-          {error && <p className="error-msg" style={{ color: '#000000', marginBottom: 10 }}>{error}</p>}
+          {error && <p className="error-msg" style={{ color: '#e53e3e', marginBottom: 10 }}>{error}</p>}
 
           <button type="submit" className="btn btn-primary" style={{ marginTop: 10, width: '100%' }}>
             {isSignUp ? "S'inscrire" : 'Se connecter'}
@@ -88,6 +87,7 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   );
 }
 
+// --- DASHBOARD (Admin & User) ---
 
 function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   const [userId, setUserId] = useState('');
@@ -195,19 +195,44 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     } catch (err) { setOutput(<p className="error-msg">Erreur : {err.message}</p>); }
   };
 
+
   const deleteUserById = async (id) => {
     const target = Number(id || userId);
     if (!target) return setOutput(<p className="warning-msg">Saisissez un ID Utilisateur pour la suppression.</p>);
+
+    // Auto-suppression interdite
     if (target === currentUser?.id) {
       return setOutput(<div className="result-card error"><strong>Action interdite :</strong> Vous ne pouvez pas supprimer votre propre compte administrateur.</div>);
     }
-    if (!confirm(`Confirmez la suppression de l'utilisateur ${target} ?`)) return;
+
     try {
+     
+      const usersRes = await fetch(`${API_BASE}/users`);
+      const users = await usersRes.json();
+      const targetUser = Array.isArray(users) ? users.find((u) => u.id === target) : null;
+
+ 
+      if (targetUser && targetUser.role === 'admin') {
+        return setOutput(
+          <div className="result-card error">
+            <strong>Action interdite :</strong> Un administrateur ne peut pas supprimer un autre administrateur.
+          </div>
+        );
+      }
+
+      if (!confirm(`Confirmez la suppression de l'utilisateur ${target} ?`)) return;
+
       const res = await fetch(`${API_BASE}/users/${target}`, { method: 'DELETE' });
       const data = await res.json();
-      if (res.ok) { setOutput(<div className="result-card error"><strong>{data.message || 'Utilisateur supprimé.'}</strong></div>); getUsers(); } 
-      else { setOutput(<p className="error-msg">Erreur : {data.error}</p>); }
-    } catch (err) { setOutput(<p className="error-msg">Erreur : {err.message}</p>); }
+      if (res.ok) {
+        setOutput(<div className="result-card error"><strong>{data.message || 'Utilisateur supprimé.'}</strong></div>);
+        getUsers();
+      } else {
+        setOutput(<p className="error-msg">Erreur : {data.error}</p>);
+      }
+    } catch (err) {
+      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
+    }
   };
 
   const deletePostById = async (id) => {
@@ -248,7 +273,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     );
   }
 
-
+  // Vue Rôle Admin
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -260,7 +285,6 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         <h3>Panneau d'administration</h3>
         <p style={{ fontSize: '0.9rem', color: '#666' }}>Connecté en tant que <strong>{currentUser?.name}</strong> (ID: {currentUser?.id})</p>
         
-        {/* L'INPUT S'AFFICHE UNIQUEMENT POUR CES 3 ACTIONS */}
         {activeAction && (
           <div style={{ marginTop: 15, padding: 10, background: '#f7fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
             <label style={{ fontWeight: 'bold' }}>
@@ -302,12 +326,10 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
 }
 
 
-
 function ProtectedRoute({ token, children }) {
   if (!token) return <Navigate to="/login" replace />;
   return children;
 }
-
 
 
 export default function App() {
