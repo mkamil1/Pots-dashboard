@@ -98,24 +98,24 @@ input {
 }
 
 .btn-primary { 
-    background: green; 
+    background: blue; 
     box-shadow: 0 6px 18px rgba(59,130,246,0.12); 
 }
 .btn-secondary { 
-    background: green; 
+    background: blue; 
 }
 .btn-info { 
-    background: green; 
+    background:blue; 
 }
 .btn-outline { 
-    background: green; 
+    background: blue; 
 }
 .btn-danger { 
-    background: green; 
+    background: blue; 
   
 }
 .btn-out { 
-    background: green; 
+    background: blue; 
     position:absolute;
     top:0;
     right: 0;
@@ -124,7 +124,9 @@ input {
    
 }
 .btn-posts { 
-    background: green; 
+    background: blue
+    
+    ; 
 }
 
 .button-row { 
@@ -206,4 +208,7 @@ input {
     border-radius: 4px;
     font-size: 0.8rem;
     margin-right: 8px;
+}
+.btn:hover{
+    background-color: rgb(89, 89, 203);
 }
