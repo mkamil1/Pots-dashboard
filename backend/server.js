@@ -57,7 +57,6 @@ app.post('/api/auth/signup', async (req, res) => {
     return res.status(400).json({ error: 'Nom, email et mot de passe requis.' });
   }
 
-  // Prise en charge de 'superadmin', 'admin', ou 'user' par défaut
   let userRole = 'user';
   if (role === 'superadmin') {
     userRole = 'superadmin';
@@ -260,7 +259,7 @@ app.delete('/api/users/by-post/:postId', (req, res) => {
   });
 });
 
-// ROUTE DE SUPPRESSION SÉCURISÉE AVEC DEUX NIVEAUX D'ADMINISTRATION
+
 app.delete('/api/users/:id', authenticateToken, (req, res) => {
   const requester = req.user; // { userId, email, role } issu du token JWT
   const targetId = Number(req.params.id);

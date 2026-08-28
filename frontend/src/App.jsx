@@ -4,7 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react
 const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
 const API_BASE = 'http://localhost:5002/api';
 
-// --- PAGE D'AUTHENTIFICATION ---
+
 
 function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   const [name, setName] = useState('');
@@ -280,7 +280,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     );
   }
 
-  // Vue Admin & Super Admin
+  
   const isSuperAdmin = currentUser?.role === 'superadmin';
 
   return (
