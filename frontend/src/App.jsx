@@ -193,7 +193,6 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     } catch (err) { setOutput(<p className="error-msg">Erreur : {err.message}</p>); }
   };
 
-  // L'Admin ne peut PAS s'auto-supprimer
   const deleteUserById = async (id) => {
     const target = Number(id || userId);
     if (!target) return setOutput(<p className="warning-msg">Saisissez un ID Utilisateur pour la suppression.</p>);

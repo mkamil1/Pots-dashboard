@@ -40,7 +40,6 @@ const db = new sqlite3.Database(path.resolve(__dirname, 'database.sqlite'), (err
   }
 });
 
-// Middleware Vérification Token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -53,7 +52,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// --- AUTHENTIFICATION ---
+
 
 // SIGN UP
 app.post('/api/auth/signup', async (req, res) => {
@@ -88,7 +87,6 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-// LOGIN
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
@@ -107,7 +105,7 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-// GET CURRENT USER PROFILE
+
 app.get('/api/auth/me', authenticateToken, (req, res) => {
   db.get('SELECT user_id AS id, name, email, role FROM users WHERE user_id = ?', [req.user.userId], (err, user) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -115,9 +113,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   });
 });
 
-// --- ROUTES FONCTIONNELLES CONSERVÉES & SÉCURISÉES ---
 
-// GET tous les posts
 app.get('/api/posts', (req, res) => {
   db.all('SELECT post_id AS id, user_id, title, content FROM posts ORDER BY post_id ASC', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -125,7 +121,6 @@ app.get('/api/posts', (req, res) => {
   });
 });
 
-// GET posts pour un utilisateur spécifique
 app.get('/api/users/:id/posts', (req, res) => {
   const { id } = req.params;
   db.all('SELECT post_id AS id, user_id, title, content FROM posts WHERE user_id = ? ORDER BY post_id ASC', [id], (err, rows) => {
@@ -134,7 +129,7 @@ app.get('/api/users/:id/posts', (req, res) => {
   });
 });
 
-// POST créer un post
+
 app.post('/api/posts', (req, res) => {
   const { user_id, title, content } = req.body;
   if (!user_id || !title) return res.status(400).json({ error: 'user_id et title sont requis.' });
@@ -150,7 +145,7 @@ app.post('/api/posts', (req, res) => {
   });
 });
 
-// PUT remplacer un post
+
 app.put('/api/posts/:id', (req, res) => {
   const { id } = req.params;
   const { user_id, title, content } = req.body;
@@ -163,7 +158,6 @@ app.put('/api/posts/:id', (req, res) => {
   });
 });
 
-// PATCH modifier partiellement un post
 app.patch('/api/posts/:id', (req, res) => {
   const { id } = req.params;
   const { user_id, title, content } = req.body;
@@ -183,7 +177,6 @@ app.patch('/api/posts/:id', (req, res) => {
   });
 });
 
-// DELETE un post
 app.delete('/api/posts/:id', (req, res) => {
   const { id } = req.params;
   db.run('DELETE FROM posts WHERE post_id = ?', [id], function (err) {
@@ -193,7 +186,7 @@ app.delete('/api/posts/:id', (req, res) => {
   });
 });
 
-// GET tous les utilisateurs
+
 app.get('/api/users', (req, res) => {
   db.all('SELECT user_id AS id, name, email, role FROM users ORDER BY user_id ASC', [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -201,7 +194,6 @@ app.get('/api/users', (req, res) => {
   });
 });
 
-// POST créer un utilisateur
 app.post('/api/users', (req, res) => {
   const { name, email } = req.body;
   if (!name || !email) return res.status(400).json({ error: "Nom et Email requis." });
@@ -227,7 +219,6 @@ app.post('/api/users', (req, res) => {
   });
 });
 
-// PUT modifier un utilisateur
 app.put('/api/users/:id', (req, res) => {
   const { id } = req.params;
   const { name, email } = req.body;
@@ -240,7 +231,6 @@ app.put('/api/users/:id', (req, res) => {
   });
 });
 
-// PATCH modifier un utilisateur
 app.patch('/api/users/:id', (req, res) => {
   const { id } = req.params;
   const { name, email } = req.body;
@@ -259,7 +249,6 @@ app.patch('/api/users/:id', (req, res) => {
   });
 });
 
-// DELETE un utilisateur par ID de Post
 app.delete('/api/users/by-post/:postId', (req, res) => {
   const { postId } = req.params;
   db.get('SELECT user_id FROM posts WHERE post_id = ?', [postId], (err, row) => {
@@ -274,7 +263,6 @@ app.delete('/api/users/by-post/:postId', (req, res) => {
   });
 });
 
-// DELETE un utilisateur
 app.delete('/api/users/:id', (req, res) => {
   const { id } = req.params;
   db.run('DELETE FROM users WHERE user_id = ?', [id], function (err) {
