@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react
 const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
 const API_BASE = 'http://localhost:5002/api';
 
+// --- PAGE D'AUTHENTIFICATION ---
 
 function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   const [name, setName] = useState('');
@@ -31,7 +32,6 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur d'authentification");
 
-      
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setCurrentUser(data.user);
@@ -45,11 +45,11 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
     <div className="container">
       <h1>Authentification</h1>
       <div className="card form-card">
-        <div style={{ justifyContent:'center', display: 'flex', gap: 10, marginBottom: 15 }}>
-          <Link style={{ textDecoration:'none'}}to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+        <div style={{ justifyContent: 'center',display:'flex', gap: 10, marginBottom: 15 }}>
+          <Link style={{ textDecoration: 'none'}} to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Connexion
           </Link>
-          <Link style={{ textDecoration:'none'}} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+          <Link style={{ textDecoration: 'none'}} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Inscription
           </Link>
         </div>
@@ -77,7 +77,7 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
             </>
           )}
 
-          {error && <p className="error-msg" style={{ color: '#e53e3e', marginBottom: 10 }}>{error}</p>}
+          {error && <p className="error-msg" style={{ color: '#000000', marginBottom: 10 }}>{error}</p>}
 
           <button type="submit" className="btn btn-primary" style={{ marginTop: 10, width: '100%' }}>
             {isSignUp ? "S'inscrire" : 'Se connecter'}
@@ -89,10 +89,10 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
 }
 
 
-
 function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   const [userId, setUserId] = useState('');
   const [output, setOutput] = useState('...');
+  const [activeAction, setActiveAction] = useState(null); // 'create_post', 'get_user_posts', 'delete_user'
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -103,6 +103,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   };
 
   const getHour = async () => {
+    setActiveAction(null);
     try {
       const res = await fetch(POSTMAN_MOCK_URL);
       const data = await res.json();
@@ -114,6 +115,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   };
 
   const getUsers = async () => {
+    setActiveAction(null);
     try {
       const res = await fetch(`${API_BASE}/users`);
       const users = await res.json();
@@ -132,6 +134,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   };
 
   const getAllPosts = async () => {
+    setActiveAction(null);
     try {
       const res = await fetch(`${API_BASE}/posts`);
       const posts = await res.json();
@@ -171,7 +174,6 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     } catch (err) { setOutput(<p className="error-msg">Erreur : {err.message}</p>); }
   };
 
-  
   const createPost = async () => {
     const targetUserId = userId || currentUser?.id;
     try {
@@ -221,6 +223,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     } catch (err) { setOutput(<p className="error-msg">Erreur : {err.message}</p>); }
   };
 
+  
   if (currentUser?.role === 'user') {
     return (
       <div className="container">
@@ -235,7 +238,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         <div className="button-grid">
           <button className="btn btn-info" onClick={() => getUserPosts(currentUser.id)}>Mes Posts</button>
           <button className="btn btn-primary" onClick={createPost}>Créer un Post</button>
-          <button className="btn btn-secondary" onClick={getHour}>Obtenir l'heure (Postman API)</button>
+          <button className="btn btn-secondary" onClick={getHour}>Obtenir l'heure</button>
         </div>
         <div className="card response-card">
           <h3>Résultat</h3>
@@ -245,29 +248,51 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     );
   }
 
-  
+
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Dashboard Admin</h1>
         <button className="btn btn-out" onClick={handleLogout}>Déconnexion</button>
       </div>
+
       <div className="card form-card">
-        <h3>Gestion & Création de Posts (Admin)</h3>
+        <h3>Panneau d'administration</h3>
         <p style={{ fontSize: '0.9rem', color: '#666' }}>Connecté en tant que <strong>{currentUser?.name}</strong> (ID: {currentUser?.id})</p>
-        <div>
-          <label>User ID cible (laisser vide pour votre propre compte)</label>
-          <input placeholder={`Ex: ${currentUser?.id}`} type="number" value={userId} onChange={(e) => setUserId(e.target.value)} />
-        </div>
+        
+        {/* L'INPUT S'AFFICHE UNIQUEMENT POUR CES 3 ACTIONS */}
+        {activeAction && (
+          <div style={{ marginTop: 15, padding: 10, background: '#f7fafc', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+            <label style={{ fontWeight: 'bold' }}>
+              {activeAction === 'create_post' && "ID Utilisateur pour qui créer le post :"}
+              {activeAction === 'get_user_posts' && "ID Utilisateur dont vous voulez voir les posts :"}
+              {activeAction === 'delete_user' && "ID Utilisateur à supprimer :"}
+            </label>
+            <input
+              placeholder={`Ex: ${currentUser?.id}`}
+              type="number"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              style={{ marginTop: 5 }}
+            />
+            <div style={{ marginTop: 10, display: 'flex', gap: 10 }}>
+              {activeAction === 'create_post' && <button className="btn btn-primary" onClick={createPost}>Valider la création</button>}
+              {activeAction === 'get_user_posts' && <button className="btn btn-info" onClick={() => getUserPosts()}>Afficher ses posts</button>}
+              {activeAction === 'delete_user' && <button className="btn btn-danger" onClick={() => deleteUserById(userId)}>Confirmer la suppression</button>}
+            </div>
+          </div>
+        )}
       </div>
+
       <div className="button-grid">
-        <button className="btn btn-primary" onClick={createPost}>Créer un Post</button>
-        <button className="btn btn-info" onClick={() => getUserPosts()}>Posts de l'utilisateur cible</button>
-        <button className="btn btn-outline" onClick={getUsers}>Liste des utilisateurs</button>
+        <button className="btn btn-primary" onClick={() => setActiveAction('create_post')}>Créer un Post pour quelqu'un</button>
+        <button className="btn btn-info" onClick={() => setActiveAction('get_user_posts')}>Voir les posts d'un utilisateur</button>
+        <button className="btn btn-danger" onClick={() => setActiveAction('delete_user')}>Supprimer un utilisateur</button>
+        <button className="btn btn-outline" onClick={getUsers}>Tous les utilisateurs</button>
         <button className="btn btn-posts" onClick={getAllPosts}>Tous les posts</button>
-        <button className="btn btn-danger" onClick={() => deleteUserById(userId)}>Supprimer l'utilisateur cible</button>
         <button className="btn btn-secondary" onClick={getHour}>Obtenir l'heure</button>
       </div>
+
       <div className="card response-card">
         <h3>Résultat</h3>
         <div id="output" className="output-box">{output}</div>
@@ -288,7 +313,6 @@ function ProtectedRoute({ token, children }) {
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [currentUser, setCurrentUser] = useState(null);
-
 
   useEffect(() => {
     if (token) {
