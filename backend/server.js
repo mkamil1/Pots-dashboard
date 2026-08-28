@@ -27,7 +27,6 @@ const db = new sqlite3.Database(path.resolve(__dirname, 'database.sqlite'), (err
       )
     `);
 
-    // Table Posts
     db.run(`
       CREATE TABLE IF NOT EXISTS posts (
         post_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,16 +51,19 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-
-
-// SIGN UP
 app.post('/api/auth/signup', async (req, res) => {
   const { name, email, password, role } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Nom, email et mot de passe requis.' });
   }
 
-  const userRole = role === 'admin' ? 'admin' : 'user';
+  // Prise en charge de 'superadmin', 'admin', ou 'user' par défaut
+  let userRole = 'user';
+  if (role === 'superadmin') {
+    userRole = 'superadmin';
+  } else if (role === 'admin') {
+    userRole = 'admin';
+  }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -105,14 +107,12 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-
 app.get('/api/auth/me', authenticateToken, (req, res) => {
   db.get('SELECT user_id AS id, name, email, role FROM users WHERE user_id = ?', [req.user.userId], (err, user) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(user);
   });
 });
-
 
 app.get('/api/posts', (req, res) => {
   db.all('SELECT post_id AS id, user_id, title, content FROM posts ORDER BY post_id ASC', [], (err, rows) => {
@@ -129,7 +129,6 @@ app.get('/api/users/:id/posts', (req, res) => {
   });
 });
 
-
 app.post('/api/posts', (req, res) => {
   const { user_id, title, content } = req.body;
   if (!user_id || !title) return res.status(400).json({ error: 'user_id et title sont requis.' });
@@ -144,7 +143,6 @@ app.post('/api/posts', (req, res) => {
     });
   });
 });
-
 
 app.put('/api/posts/:id', (req, res) => {
   const { id } = req.params;
@@ -185,7 +183,6 @@ app.delete('/api/posts/:id', (req, res) => {
     res.json({ message: `Post ${id} supprimé.` });
   });
 });
-
 
 app.get('/api/users', (req, res) => {
   db.all('SELECT user_id AS id, name, email, role FROM users ORDER BY user_id ASC', [], (err, rows) => {
@@ -263,12 +260,36 @@ app.delete('/api/users/by-post/:postId', (req, res) => {
   });
 });
 
-app.delete('/api/users/:id', (req, res) => {
-  const { id } = req.params;
-  db.run('DELETE FROM users WHERE user_id = ?', [id], function (err) {
+// ROUTE DE SUPPRESSION SÉCURISÉE AVEC DEUX NIVEAUX D'ADMINISTRATION
+app.delete('/api/users/:id', authenticateToken, (req, res) => {
+  const requester = req.user; // { userId, email, role } issu du token JWT
+  const targetId = Number(req.params.id);
+
+  db.get('SELECT user_id, role FROM users WHERE user_id = ?', [targetId], (err, targetUser) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (this.changes === 0) return res.status(404).json({ error: "Utilisateur non trouvé." });
-    res.json({ message: `Utilisateur ${id} supprimé avec succès.` });
+    if (!targetUser) return res.status(404).json({ error: "Utilisateur non trouvé." });
+
+    // 1. Interdiction de supprimer son propre compte
+    if (requester.userId === targetUser.user_id) {
+      return res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte." });
+    }
+
+    // 2. Interdiction absolue de supprimer un Super Admin
+    if (targetUser.role === 'superadmin') {
+      return res.status(403).json({ error: "Action interdite : Impossible de supprimer un Super Admin." });
+    }
+
+    // 3. Un Admin Standard ne peut PAS supprimer un autre Admin
+    if (targetUser.role === 'admin' && requester.role !== 'superadmin') {
+      return res.status(403).json({ error: "Privilèges insuffisants : Seul un Super Admin peut supprimer un Admin." });
+    }
+
+    // 4. Exécution de la suppression
+    db.run('DELETE FROM users WHERE user_id = ?', [targetId], function (errDelete) {
+      if (errDelete) return res.status(500).json({ error: errDelete.message });
+      if (this.changes === 0) return res.status(404).json({ error: "Utilisateur non trouvé." });
+      res.json({ message: `Utilisateur ${targetId} supprimé avec succès.` });
+    });
   });
 });
 

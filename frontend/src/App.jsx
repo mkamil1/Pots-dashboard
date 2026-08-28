@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react
 const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
 const API_BASE = 'http://localhost:5002/api';
 
+// --- PAGE D'AUTHENTIFICATION ---
 
 function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   const [name, setName] = useState('');
@@ -45,10 +46,10 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
       <h1>Authentification</h1>
       <div className="card form-card">
         <div style={{ justifyContent:'center', display: 'flex', gap: 10, marginBottom: 15 }}>
-          <Link style={{textDecoration :'none'}} to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+          <Link style={{textDecoration: 'none'}} to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Connexion
           </Link>
-          <Link style={{textDecoration :'none'}} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
+          <Link style={{textDecoration: 'none'}} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
             Inscription
           </Link>
         </div>
@@ -71,7 +72,8 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
               <label>Rôle</label>
               <select value={role} onChange={(e) => setRole(e.target.value)} style={{ width: '100%', padding: 10, marginBottom: 10, borderRadius: 6 }}>
                 <option value="user">Utilisateur (User)</option>
-                <option value="admin">Administrateur (Admin)</option>
+                <option value="admin">Administrateur Standard (Admin)</option>
+                <option value="superadmin">Super Administrateur (Super Admin)</option>
               </select>
             </>
           )}
@@ -87,7 +89,7 @@ function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
   );
 }
 
-// --- DASHBOARD (Admin & User) ---
+
 
 function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   const [userId, setUserId] = useState('');
@@ -120,11 +122,14 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
       const res = await fetch(`${API_BASE}/users`);
       const users = await res.json();
       if (!Array.isArray(users) || users.length === 0) return setOutput(<p className="empty-msg">Aucun utilisateur enregistré.</p>);
+      
       setOutput(
         <ul className="user-list">
           {users.map((u) => (
             <li key={u.id} className="user-item" onClick={() => deleteUserById(u.id)} title="Cliquer pour supprimer">
-              <span className="badge">User {u.id} ({u.role || 'user'})</span>
+              <span className={`badge ${u.role === 'superadmin' ? 'badge-danger' : ''}`}>
+                User {u.id} ({u.role || 'user'})
+              </span>
               <strong className="user-name">{u.name}</strong> <span className="user-email">({u.email})</span>
             </li>
           ))}
@@ -189,7 +194,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
       const data = await res.json();
       if (res.ok) {
         setOutput(<div className="result-card success"><strong>Post créé avec succès !</strong><br />Post ID : <strong>{data.id}</strong> | User ID : <strong>{data.user_id}</strong></div>);
-        if (currentUser?.role === 'admin') getAllPosts();
+        if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') getAllPosts();
         else getUserPosts(currentUser?.id);
       } else { setOutput(<p className="error-msg">Erreur : {data.error}</p>); }
     } catch (err) { setOutput(<p className="error-msg">Erreur : {err.message}</p>); }
@@ -202,22 +207,24 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
 
     // Auto-suppression interdite
     if (target === currentUser?.id) {
-      return setOutput(<div className="result-card error"><strong>Action interdite :</strong> Vous ne pouvez pas supprimer votre propre compte administrateur.</div>);
+      return setOutput(<div className="result-card error"><strong>Action interdite :</strong> Vous ne pouvez pas supprimer votre propre compte.</div>);
     }
 
     try {
-     
       const usersRes = await fetch(`${API_BASE}/users`);
       const users = await usersRes.json();
       const targetUser = Array.isArray(users) ? users.find((u) => u.id === target) : null;
 
+      if (targetUser) {
+        
+        if (targetUser.role === 'superadmin') {
+          return setOutput(<div className="result-card error"><strong>Action interdite :</strong> Il est impossible de supprimer un Super Admin.</div>);
+        }
+
  
-      if (targetUser && targetUser.role === 'admin') {
-        return setOutput(
-          <div className="result-card error">
-            <strong>Action interdite :</strong> Un administrateur ne peut pas supprimer un autre administrateur.
-          </div>
-        );
+        if (targetUser.role === 'admin' && currentUser?.role !== 'superadmin') {
+          return setOutput(<div className="result-card error"><strong>Action interdite :</strong> Seul un Super Admin peut supprimer un compte Administrateur.</div>);
+        }
       }
 
       if (!confirm(`Confirmez la suppression de l'utilisateur ${target} ?`)) return;
@@ -242,13 +249,13 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
       const data = await res.json();
       if (res.ok) {
         setOutput(<div className="result-card error"><strong>{data.message || 'Post supprimé.'}</strong></div>);
-        if (currentUser?.role === 'admin') getAllPosts();
+        if (currentUser?.role === 'admin' || currentUser?.role === 'superadmin') getAllPosts();
         else getUserPosts(currentUser?.id);
       } else { setOutput(<p className="error-msg">Erreur : {data.error}</p>); }
     } catch (err) { setOutput(<p className="error-msg">Erreur : {err.message}</p>); }
   };
 
-  
+
   if (currentUser?.role === 'user') {
     return (
       <div className="container">
@@ -273,16 +280,18 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     );
   }
 
-  // Vue Rôle Admin
+  // Vue Admin & Super Admin
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Dashboard Admin</h1>
+        <h1>{isSuperAdmin ? 'Dashboard Super Admin ' : 'Dashboard Admin'}</h1>
         <button className="btn btn-out" onClick={handleLogout}>Déconnexion</button>
       </div>
 
       <div className="card form-card">
-        <h3>Panneau d'administration</h3>
+        <h3>Panneau d'administration ({isSuperAdmin ? 'Super Admin' : 'Admin Standard'})</h3>
         <p style={{ fontSize: '0.9rem', color: '#666' }}>Connecté en tant que <strong>{currentUser?.name}</strong> (ID: {currentUser?.id})</p>
         
         {activeAction && (
@@ -324,6 +333,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     </div>
   );
 }
+
 
 
 function ProtectedRoute({ token, children }) {
