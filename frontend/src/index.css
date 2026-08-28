@@ -162,20 +162,20 @@ input {
 
 .result-card.success { 
     background: #ecfdf5; 
-    border:1px solid #bbf7d0; 
+    border:1px solid #ecfdf5; 
     padding:10px; 
 }
 .result-card.error { 
     background: #fff1f2; 
-    border:1px solid #fecaca; 
+    border:1px solid #ecfdf5; 
     padding:10px; 
 }
 
 .warning-msg { 
-    color:#6b7280; 
+    color:#000000; 
 }
 .error-msg { 
-    color: #6b7280;
+    color: #000000;
  }
 .empty-msg { 
     color: #6b7280; 
