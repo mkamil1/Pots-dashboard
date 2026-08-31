@@ -12,7 +12,7 @@ app.use(express.json());
 const SECRET_KEY = 'votre_secret_jwt';
 const db = new sqlite3.Database('./database.db');
 
-// Réinitialisation de la base de données à chaque démarrage (Conservant uniquement le SuperAdmin)
+
 db.serialize(() => {
   db.run(`DROP TABLE IF EXISTS posts`);
   db.run(`DROP TABLE IF EXISTS users`);
@@ -43,7 +43,6 @@ db.serialize(() => {
   });
 });
 
-// Middleware d'authentification JWT
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -57,8 +56,6 @@ const authenticateToken = (req, res, next) => {
     res.status(403).json({ error: 'Token invalide ou expiré' });
   }
 };
-
-// --- ROUTES AUTHENTIFICATION ---
 
 app.post('/api/auth/signup', async (req, res) => {
   const { name, email, password } = req.body;
@@ -98,7 +95,7 @@ app.post('/api/auth/login', (req, res) => {
   });
 });
 
-// --- ROUTES UTILISATEURS ---
+
 
 app.get('/api/users', (req, res) => {
   db.all('SELECT id, name, email, role FROM users', [], (err, rows) => {
@@ -107,7 +104,6 @@ app.get('/api/users', (req, res) => {
   });
 });
 
-// Promouvoir/Rétrograder un rôle (SuperAdmin uniquement)
 app.put('/api/users/:id/role', authenticateToken, (req, res) => {
   if (req.user.role !== 'superadmin') {
     return res.status(403).json({ error: 'Action réservée au SuperAdmin' });
@@ -120,7 +116,7 @@ app.put('/api/users/:id/role', authenticateToken, (req, res) => {
   });
 });
 
-// Suppression d'un utilisateur (Contrôle strict des rôles)
+
 app.delete('/api/users/:id', authenticateToken, (req, res) => {
   const currentUserRole = req.user.role;
   const targetUserId = req.params.id;
@@ -129,20 +125,19 @@ app.delete('/api/users/:id', authenticateToken, (req, res) => {
     return res.status(403).json({ error: 'Accès refusé' });
   }
 
-  // Vérification du rôle de l'utilisateur qu'on cherche à supprimer
   db.get('SELECT role FROM users WHERE id = ?', [targetUserId], (err, targetUser) => {
     if (err || !targetUser) {
       return res.status(404).json({ error: 'Utilisateur introuvable' });
     }
 
-    // Un Admin classique NE PEUT PAS supprimer un autre Admin ni un SuperAdmin
+    
     if (currentUserRole === 'admin' && targetUser.role !== 'user') {
       return res.status(403).json({ 
         error: 'Un Admin ne peut supprimer que des utilisateurs au rôle "user"' 
       });
     }
 
-    // Suppression validée (SuperAdmin supprime n'importe qui / Admin supprime uniquement un user)
+ 
     db.run('DELETE FROM users WHERE id = ?', [targetUserId], function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ message: 'Utilisateur supprimé avec succès' });
@@ -178,13 +173,12 @@ app.get('/api/users/:id/posts', (req, res) => {
   });
 });
 
-// Suppression d'un post (Auteur, SuperAdmin, ou Admin contrôlant un 'user')
+
 app.delete('/api/posts/:id', authenticateToken, (req, res) => {
   const postId = req.params.id;
   const currentUserId = req.user.id;
   const currentUserRole = req.user.role;
 
-  // Récupérer les informations sur le créateur du post
   db.get(
     'SELECT posts.id, posts.user_id, users.role AS author_role FROM posts JOIN users ON posts.user_id = users.id WHERE posts.id = ?', 
     [postId], 
