@@ -107,7 +107,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
     try {
       const res = await fetch(`${API_BASE}/users`);
       const users = await res.json();
-      if (!Array.isArray(users) || users.length === 0) return setOutput(<p className="empty-msg">Aucun utilisateur enregistré.</p>);
+      if (!Array.isArray(users) || users.length === 0) return setOutput(<p className="empty-msg">Aucun utilisateur actif.</p>);
 
       setOutput(
         <ul className="user-list">
@@ -125,6 +125,59 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
       );
     } catch (err) {
       setOutput(<p className="error-msg">Erreur : {err.message}</p>);
+    }
+  };
+
+  const getDeletedUsers = async () => {
+    setActiveAction(null);
+    try {
+      const res = await fetch(`${API_BASE}/users/deleted`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const users = await res.json();
+      if (!Array.isArray(users) || users.length === 0) {
+        return setOutput(<p className="empty-msg">Aucun utilisateur dans la corbeille.</p>);
+      }
+
+      setOutput(
+        <div>
+          <h3>Corbeille (Utilisateurs désactivés)</h3>
+          <ul className="user-list">
+            {users.map((u) => (
+              <li key={u.id} className="user-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div>
+                  <span className="badge badge-danger">Désactivé</span>{' '}
+                  <strong>{u.name}</strong> ({u.email}) - ID: {u.id}
+                </div>
+                <button 
+                  onClick={() => handleRestoreUser(u.id)} 
+                  className="btn btn-primary"
+                 
+                >
+                  Restaurer
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    } catch (err) {
+      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
+    }
+  };
+
+  const handleRestoreUser = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/users/${id}/restore`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setOutput(<div className="result-card success"><p className="result-body">{data.message}</p></div>);
+    } catch (err) {
+      setOutput(<div className="result-card error"><p className="result-body">{err.message}</p></div>);
     }
   };
 
@@ -223,16 +276,21 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         </button>
       </header>
 
-      <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 15, marginBottom: 20 }}>
+      <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 15, marginBottom: 20 }}>
         <button onClick={getHour} className="btn btn-primary">Obtenir Heure</button>
         <button onClick={getUsers} className="btn btn-primary">Voir Utilisateurs</button>
         <button onClick={getAllPosts} className="btn btn-primary">Voir Tous les Posts</button>
         <button onClick={() => setActiveAction('create_post')} className="btn btn-secondary">Créer un Post</button>
         
         {currentUser?.role === 'superadmin' && (
-          <button onClick={() => setActiveAction('promote_admin')} className="btn btn-secondary" >
-            Nommer un Admin
-          </button>
+          <>
+            <button onClick={() => setActiveAction('promote_admin')} className="btn btn-secondary" >
+              Nommer un Admin
+            </button>
+            <button onClick={getDeletedUsers} className="btn btn-secondary" >
+              Corbeille / Restaurer
+            </button>
+          </>
         )}
 
         {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
@@ -266,11 +324,11 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
 
       {activeAction === 'delete_user' && (
         <div className="card form-card" style={{ marginBottom: 20 }}>
-          <h3>Supprimer un utilisateur</h3>
+          <h3>Supprimer (Désactiver) un utilisateur</h3>
           <form onSubmit={handleDeleteUserSubmit}>
             <label>ID de l'utilisateur à supprimer</label>
             <input type="text" value={userId} onChange={(e) => setUserId(e.target.value)} required placeholder="ex: 2" />
-            <button type="submit" className="btn btn-danger">Supprimer</button>
+            <button type="submit" className="btn btn-danger">Supprimer de la liste</button>
           </form>
         </div>
       )}
