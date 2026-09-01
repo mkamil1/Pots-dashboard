@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 
 const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
@@ -79,15 +79,32 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
   const [userId, setUserId] = useState('');
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
-  const [output, setOutput] = useState('...');
-  const [activeAction, setActiveAction] = useState(null);
+  const [output, setOutput] = useState(null);
+  const [activeAction, setActiveAction] = useState(() => {
+    try {
+      return sessionStorage.getItem('activeAction') || null;
+    } catch (e) {
+      return null;
+    }
+  });
   const navigate = useNavigate();
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    try { sessionStorage.removeItem('activeAction'); } catch (e) {}
     setToken('');
     setCurrentUser(null);
+    setOutput(null);
     navigate('/login');
+  };
+
+  const showAction = (action) => {
+    setActiveAction(action);
+    setOutput(null);
+    try {
+      if (action) sessionStorage.setItem('activeAction', action);
+      else sessionStorage.removeItem('activeAction');
+    } catch (e) {}
   };
 
   const getHour = async () => {
@@ -280,11 +297,11 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         <button onClick={getHour} className="btn btn-primary">Obtenir Heure</button>
         <button onClick={getUsers} className="btn btn-primary">Voir Utilisateurs</button>
         <button onClick={getAllPosts} className="btn btn-primary">Voir Tous les Posts</button>
-        <button onClick={() => setActiveAction('create_post')} className="btn btn-secondary">Créer un Post</button>
+        <button onClick={() => showAction('create_post')} className="btn btn-secondary">Créer un Post</button>
         
         {currentUser?.role === 'superadmin' && (
           <>
-            <button onClick={() => setActiveAction('promote_admin')} className="btn btn-secondary" >
+            <button onClick={() => showAction('promote_admin')} className="btn btn-secondary" >
               Nommer un Admin
             </button>
             <button onClick={getDeletedUsers} className="btn btn-secondary" >
@@ -294,7 +311,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         )}
 
         {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
-          <button onClick={() => setActiveAction('delete_user')} className="btn btn-danger">Supprimer User</button>
+          <button onClick={() => showAction('delete_user')} className="btn btn-danger">Supprimer User</button>
         )}
       </div>
 
@@ -333,17 +350,55 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         </div>
       )}
 
-      <div className="card result-container">
-        <h2>Résultat</h2>
-        <div className="output-box">{output}</div>
-      </div>
+      {output && (
+        <div className="card result-container">
+          <h2>Résultat</h2>
+          <div className="output-box">{output}</div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
-  const [currentUser, setCurrentUser] = useState(null);
+  const [token, setToken] = useState(() => localStorage.getItem('token') || '');
+  const [currentUser, setCurrentUserState] = useState(() => {
+    try {
+      const raw = localStorage.getItem('currentUser');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const setCurrentUser = (user) => {
+    setCurrentUserState(user);
+    try {
+      if (user) localStorage.setItem('currentUser', JSON.stringify(user));
+      else localStorage.removeItem('currentUser');
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+   
+    if (token && !currentUser) {
+      try {
+        const parts = token.split('.');
+        if (parts.length >= 2) {
+          const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          const json = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+          const payload = JSON.parse(json);
+          if (payload && (payload.role || payload.email)) {
+            setCurrentUser(payload);
+          }
+        }
+      } catch (e) {
+      
+      }
+    }
+  }, [token, currentUser]);
 
   return (
     <BrowserRouter>
