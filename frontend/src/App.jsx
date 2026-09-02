@@ -136,6 +136,32 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
                 </span>{' '}
                 <strong className="user-name">{u.name}</strong> <span className="user-email">({u.email})</span> - ID: {u.id}
               </div>
+              {(currentUser && (currentUser.role === 'superadmin' || (currentUser.role === 'admin' && u.role === 'user')) && currentUser.id !== u.id) && (
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={async () => {
+                      const confirmMsg = `Confirmer la désactivation de ${u.name} (ID: ${u.id}) ?`;
+                      if (!window.confirm(confirmMsg)) return;
+                      try {
+                        const res = await fetch(`${API_BASE}/users/${u.id}`, {
+                          method: 'DELETE',
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || 'Erreur lors de la désactivation');
+                        // refresh list
+                        getUsers();
+                        setOutput(<div className="result-card success"><p className="result-body">{data.message}</p></div>);
+                      } catch (err) {
+                        setOutput(<div className="result-card error"><p className="result-body">{err.message}</p></div>);
+                      }
+                    }}
+                  >
+                    Désactiver
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -209,9 +235,37 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         <ul className="post-list">
           {posts.map((p) => (
             <li key={p.id} className="post-item">
-              <strong className="post-title">{p.title}</strong>
-              <p className="post-content">{p.content}</p>
-              <small className="post-author">Auteur ID: {p.user_id}</small>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <strong className="post-title">{p.title}</strong>
+                  <p className="post-content">{p.content}</p>
+                  <small className="post-author">Auteur: {p.author_name || p.user_id} (ID: {p.user_id})</small>
+                </div>
+                {(currentUser && (currentUser.id === p.user_id || currentUser.role === 'superadmin' || (currentUser.role === 'admin' && p.author_role === 'user'))) && (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn btn-danger"
+                      onClick={async () => {
+                        if (!window.confirm(`Supprimer le post "${p.title}" ?`)) return;
+                        try {
+                          const res = await fetch(`${API_BASE}/posts/${p.id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: `Bearer ${token}` },
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
+                          getAllPosts();
+                          setOutput(<div className="result-card success"><p className="result-body">{data.message}</p></div>);
+                        } catch (err) {
+                          setOutput(<div className="result-card error"><p className="result-body">{err.message}</p></div>);
+                        }
+                      }}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                )}
+              </div>
             </li>
           ))}
         </ul>
@@ -294,7 +348,7 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
       </header>
 
       <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 15, marginBottom: 20 }}>
-        <button onClick={getHour} className="btn btn-primary">Obtenir Heure</button>
+        {/*<button onClick={getHour} className="btn btn-primary">Obtenir Heure</button>*/}
         <button onClick={getUsers} className="btn btn-primary">Voir Utilisateurs</button>
         <button onClick={getAllPosts} className="btn btn-primary">Voir Tous les Posts</button>
         <button onClick={() => showAction('create_post')} className="btn btn-secondary">Créer un Post</button>

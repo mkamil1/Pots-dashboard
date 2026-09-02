@@ -48,14 +48,17 @@ db.serialize(() => {
 
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
+  console.log('[auth] Authorization header:', authHeader);
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Token manquant' });
 
   try {
     const decoded = jwt.decode(token, SECRET_KEY);
+    console.log('[auth] Decoded token payload:', decoded);
     req.user = decoded;
     next();
   } catch (err) {
+    console.error('[auth] Token decode error:', err && err.message ? err.message : err);
     res.status(403).json({ error: 'Token invalide ou expiré' });
   }
 };
@@ -180,7 +183,7 @@ app.delete('/api/users/:id', authenticateToken, (req, res) => {
 
 app.get('/api/posts', (req, res) => {
   const query = `
-    SELECT posts.id, posts.title, posts.content, posts.user_id 
+    SELECT posts.id, posts.title, posts.content, posts.user_id, users.role AS author_role, users.name AS author_name
     FROM posts 
     JOIN users ON posts.user_id = users.id 
     WHERE posts.deleted_at IS NULL AND users.deleted_at IS NULL
@@ -217,6 +220,7 @@ app.delete('/api/posts/:id', authenticateToken, (req, res) => {
   `;
 
   db.get(query, [postId], (err, post) => {
+    console.log('[posts:delete] currentUserId=', currentUserId, 'currentUserRole=', currentUserRole, 'postQueryErr=', err, 'post=', post);
     if (err || !post) {
       return res.status(404).json({ error: 'Post introuvable ou déjà supprimé' });
     }
