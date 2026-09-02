@@ -14,35 +14,74 @@ const db = new sqlite3.Database('./database.db');
 
 
 db.serialize(() => {
-  db.run(`DROP TABLE IF EXISTS posts`);
-  db.run(`DROP TABLE IF EXISTS users`);
-
-  db.run(`CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    role TEXT DEFAULT 'user',
-    deleted_at DATETIME DEFAULT NULL
-  )`);
-
-  db.run(`CREATE TABLE posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    deleted_at DATETIME DEFAULT NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id)
-  )`);
-
+  const reset = process.env.RESET_DB === '1' || process.env.RESET_DB === 'true';
   const superAdminEmail = 'test@k.k';
-  bcrypt.hash('test', 10).then((hashedPassword) => {
-    db.run(
-      'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
-      ['Super Admin', superAdminEmail, hashedPassword, 'superadmin'],
-      () => console.log('Base réinitialisée avec Soft Delete. SuperAdmin actif.')
-    );
-  });
+
+  if (reset) {
+    console.log('RESET_DB enabled: reinitializing database (tables dropped)');
+    db.run(`DROP TABLE IF EXISTS posts`);
+    db.run(`DROP TABLE IF EXISTS users`);
+
+    db.run(`CREATE TABLE users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
+      deleted_at DATETIME DEFAULT NULL
+    )`);
+
+    db.run(`CREATE TABLE posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      deleted_at DATETIME DEFAULT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )`);
+
+    bcrypt.hash('test', 10).then((hashedPassword) => {
+      db.run(
+        'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+        ['Super Admin', superAdminEmail, hashedPassword, 'superadmin'],
+        () => console.log('SuperAdmin créé (database reset).')
+      );
+    });
+  } else {
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      role TEXT DEFAULT 'user',
+      deleted_at DATETIME DEFAULT NULL
+    )`);
+
+    db.run(`CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      deleted_at DATETIME DEFAULT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )`);
+
+    // insert superadmin only if not exists
+    db.get('SELECT id FROM users WHERE email = ?', [superAdminEmail], (err, row) => {
+      if (err) return console.error('Error checking superadmin:', err.message);
+      if (!row) {
+        bcrypt.hash('test', 10).then((hashedPassword) => {
+          db.run(
+            'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+            ['Super Admin', superAdminEmail, hashedPassword, 'superadmin'],
+            () => console.log('SuperAdmin créé.')
+          );
+        });
+      } else {
+        console.log('SuperAdmin already present.');
+      }
+    });
+  }
 });
 
 
@@ -138,13 +177,25 @@ app.put('/api/users/:id/restore', authenticateToken, (req, res) => {
 
 
 app.put('/api/users/:id/role', authenticateToken, (req, res) => {
+  console.log('[role:update] requester=', req.user, 'params=', req.params, 'body=', req.body);
   if (req.user.role !== 'superadmin') {
+    console.log('[role:update] denied: requester not superadmin');
     return res.status(403).json({ error: 'Action réservée au SuperAdmin' });
   }
 
   const { role } = req.body;
+  if (!role) {
+    return res.status(400).json({ error: 'Role is required' });
+  }
   db.run('UPDATE users SET role = ? WHERE id = ? AND deleted_at IS NULL', [role, req.params.id], function (err) {
-    if (err) return res.status(500).json({ error: err.message });
+    if (err) {
+      console.error('[role:update] db error:', err);
+      return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'Utilisateur introuvable ou déjà supprimé' });
+    }
+    console.log(`[role:update] updated id=${req.params.id} to role=${role}`);
     res.json({ message: `Rôle mis à jour en '${role}'` });
   });
 });

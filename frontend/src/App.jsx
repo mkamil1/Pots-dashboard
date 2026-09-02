@@ -1,306 +1,61 @@
-import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 
-const POSTMAN_MOCK_URL = 'https://cc2ab24c-77fd-4997-9926-195510dfcb44.mock.pstmn.io/current-hour';
-const API_BASE = '/api';
+const API_URL = 'http://localhost:5002/api';
 
-function AuthPage({ isSignUp, token, setToken, setCurrentUser }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+  const [isLogin, setIsLogin] = useState(true);
+  
+  // Dynamic Views
+  const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // Data States
+  const [posts, setPosts] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [deletedUsers, setDeletedUsers] = useState([]);
+  
+  // Forms
+  const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' });
+  const [newPost, setNewPost] = useState({ title: '', content: '' });
   const [error, setError] = useState('');
-  const navigate = useNavigate();
+  const [promoteId, setPromoteId] = useState('');
+  const [promoteMsg, setPromoteMsg] = useState('');
 
-  if (token) return <Navigate to="/dashboard" replace />;
+  useEffect(() => {
+    const savedUser = localStorage.getItem('user');
+    if (savedUser && token) {
+      setUser(JSON.parse(savedUser));
+    }
+  }, [token]);
 
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setError('');
-    const endpoint = isSignUp ? '/auth/signup' : '/auth/login';
-    const body = isSignUp ? { name, email, password } : { email, password };
+  useEffect(() => {
+    fetchPosts();
+    if (user && (user.role === 'admin' || user.role === 'superadmin')) {
+      fetchUsers();
+    }
+    if (user && user.role === 'superadmin') {
+      fetchDeletedUsers();
+    }
+  }, [user]);
 
+  const fetchPosts = async () => {
     try {
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
+      const res = await fetch(`${API_URL}/posts`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur d'authentification");
-
-      localStorage.setItem('token', data.token);
-      setToken(data.token);
-      setCurrentUser(data.user);
-      navigate('/dashboard');
+      if (Array.isArray(data)) setPosts(data);
     } catch (err) {
-      setError(err.message);
+      console.error(err);
     }
   };
 
-  return (
-    <div className="container">
-      <h1>Authentification</h1>
-      <div className="card form-card">
-        <div style={{ justifyContent: 'center', display: 'flex', gap: 10, marginBottom: 15 }}>
-          <Link style={{ textDecoration: 'none' }} to="/login" className={`btn ${!isSignUp ? 'btn-primary' : 'btn-outline'}`}>
-            Connexion
-          </Link>
-          <Link style={{ textDecoration: 'none' }} to="/signup" className={`btn ${isSignUp ? 'btn-primary' : 'btn-outline'}`}>
-            Inscription
-          </Link>
-        </div>
-
-        <form onSubmit={handleAuth} autoComplete="off">
-          {isSignUp && (
-            <>
-              <label>Nom</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom" required />
-            </>
-          )}
-          <label>Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" required />
-
-          <label>Mot de passe</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" required />
-
-          {error && <p className="error-msg" style={{ color: '#e53e3e', marginBottom: 10 }}>{error}</p>}
-
-          <button type="submit" className="btn btn-primary" style={{ marginTop: 10, width: '100%' }}>
-            {isSignUp ? "S'inscrire" : 'Se connecter'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
-  const [userId, setUserId] = useState('');
-  const [postTitle, setPostTitle] = useState('');
-  const [postContent, setPostContent] = useState('');
-  const [output, setOutput] = useState(null);
-  const [activeAction, setActiveAction] = useState(() => {
+  // Promote user to admin (superadmin only)
+  const handlePromoteUser = async (e) => {
+    e?.preventDefault?.();
+    setPromoteMsg('');
+    if (!promoteId) return setPromoteMsg('Entrez un ID valide');
     try {
-      return sessionStorage.getItem('activeAction') || null;
-    } catch (e) {
-      return null;
-    }
-  });
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    try { sessionStorage.removeItem('activeAction'); } catch (e) {}
-    setToken('');
-    setCurrentUser(null);
-    setOutput(null);
-    navigate('/login');
-  };
-
-  const showAction = (action) => {
-    setActiveAction(action);
-    setOutput(null);
-    try {
-      if (action) sessionStorage.setItem('activeAction', action);
-      else sessionStorage.removeItem('activeAction');
-    } catch (e) {}
-  };
-
-  const getHour = async () => {
-    setActiveAction(null);
-    try {
-      const res = await fetch(POSTMAN_MOCK_URL);
-      const data = await res.json();
-      const heure = data.time || data.formatted || data.current_hour || JSON.stringify(data);
-      setOutput(<div className="result-card success"><span className="result-title">Heure récupérée :</span><p className="result-body">{heure}</p></div>);
-    } catch (err) {
-      setOutput(<div className="result-card error"><span className="result-title">Erreur :</span><p className="result-body">{err.message}</p></div>);
-    }
-  };
-
-  const getUsers = async () => {
-    setActiveAction(null);
-    try {
-      const res = await fetch(`${API_BASE}/users`);
-      const users = await res.json();
-      if (!Array.isArray(users) || users.length === 0) return setOutput(<p className="empty-msg">Aucun utilisateur actif.</p>);
-
-      setOutput(
-        <ul className="user-list">
-          {users.map((u) => (
-            <li key={u.id} className="user-item">
-              <div>
-                <span className={`badge ${u.role === 'superadmin' ? 'badge-danger' : ''}`}>
-                  {u.role || 'user'}
-                </span>{' '}
-                <strong className="user-name">{u.name}</strong> <span className="user-email">({u.email})</span> - ID: {u.id}
-              </div>
-              {(currentUser && (currentUser.role === 'superadmin' || (currentUser.role === 'admin' && u.role === 'user')) && currentUser.id !== u.id) && (
-                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={async () => {
-                      const confirmMsg = `Confirmer la désactivation de ${u.name} (ID: ${u.id}) ?`;
-                      if (!window.confirm(confirmMsg)) return;
-                      try {
-                        const res = await fetch(`${API_BASE}/users/${u.id}`, {
-                          method: 'DELETE',
-                          headers: { Authorization: `Bearer ${token}` },
-                        });
-                        const data = await res.json();
-                        if (!res.ok) throw new Error(data.error || 'Erreur lors de la désactivation');
-                        // refresh list
-                        getUsers();
-                        setOutput(<div className="result-card success"><p className="result-body">{data.message}</p></div>);
-                      } catch (err) {
-                        setOutput(<div className="result-card error"><p className="result-body">{err.message}</p></div>);
-                      }
-                    }}
-                  >
-                    Désactiver
-                  </button>
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      );
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
-
-  const getDeletedUsers = async () => {
-    setActiveAction(null);
-    try {
-      const res = await fetch(`${API_BASE}/users/deleted`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const users = await res.json();
-      if (!Array.isArray(users) || users.length === 0) {
-        return setOutput(<p className="empty-msg">Aucun utilisateur dans la corbeille.</p>);
-      }
-
-      setOutput(
-        <div>
-          <h3>Corbeille (Utilisateurs désactivés)</h3>
-          <ul className="user-list">
-            {users.map((u) => (
-              <li key={u.id} className="user-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div>
-                  <span className="badge badge-danger">Désactivé</span>{' '}
-                  <strong>{u.name}</strong> ({u.email}) - ID: {u.id}
-                </div>
-                <button 
-                  onClick={() => handleRestoreUser(u.id)} 
-                  className="btn btn-primary"
-                 
-                >
-                  Restaurer
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      );
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
-
-  const handleRestoreUser = async (id) => {
-    try {
-      const res = await fetch(`${API_BASE}/users/${id}/restore`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      setOutput(<div className="result-card success"><p className="result-body">{data.message}</p></div>);
-    } catch (err) {
-      setOutput(<div className="result-card error"><p className="result-body">{err.message}</p></div>);
-    }
-  };
-
-  const getAllPosts = async () => {
-    setActiveAction(null);
-    try {
-      const res = await fetch(`${API_BASE}/posts`);
-      const posts = await res.json();
-      if (!Array.isArray(posts) || posts.length === 0) return setOutput(<p className="empty-msg">Aucun post disponible.</p>);
-
-      setOutput(
-        <ul className="post-list">
-          {posts.map((p) => (
-            <li key={p.id} className="post-item">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <strong className="post-title">{p.title}</strong>
-                  <p className="post-content">{p.content}</p>
-                  <small className="post-author">Auteur: {p.author_name || p.user_id} (ID: {p.user_id})</small>
-                </div>
-                {(currentUser && (currentUser.id === p.user_id || currentUser.role === 'superadmin' || (currentUser.role === 'admin' && p.author_role === 'user'))) && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      className="btn btn-danger"
-                      onClick={async () => {
-                        if (!window.confirm(`Supprimer le post "${p.title}" ?`)) return;
-                        try {
-                          const res = await fetch(`${API_BASE}/posts/${p.id}`, {
-                            method: 'DELETE',
-                            headers: { Authorization: `Bearer ${token}` },
-                          });
-                          const data = await res.json();
-                          if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
-                          getAllPosts();
-                          setOutput(<div className="result-card success"><p className="result-body">{data.message}</p></div>);
-                        } catch (err) {
-                          setOutput(<div className="result-card error"><p className="result-body">{err.message}</p></div>);
-                        }
-                      }}
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      );
-    } catch (err) {
-      setOutput(<p className="error-msg">Erreur : {err.message}</p>);
-    }
-  };
-
-  const handleCreatePost = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE}/posts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ title: postTitle, content: postContent }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur lors de la création');
-
-      setOutput(<div className="result-card success"><span className="result-title">Succès :</span><p className="result-body">Post créé avec succès (ID: {data.id})</p></div>);
-      setPostTitle('');
-      setPostContent('');
-    } catch (err) {
-      setOutput(<div className="result-card error"><span className="result-title">Erreur :</span><p className="result-body">{err.message}</p></div>);
-    }
-  };
-
-  const handlePromoteAdmin = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`${API_BASE}/users/${userId}/role`, {
+      const res = await fetch(`${API_URL}/users/${promoteId}/role`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -309,168 +64,335 @@ function Dashboard({ currentUser, token, setToken, setCurrentUser }) {
         body: JSON.stringify({ role: 'admin' }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur lors de la promotion');
-
-      setOutput(<div className="result-card success"><span className="result-title">Succès :</span><p className="result-body">{data.message}</p></div>);
-      setUserId('');
+      if (!res.ok) return setPromoteMsg(data.error || 'Erreur lors de la promotion');
+      setPromoteMsg('Utilisateur promu en admin avec succès');
+      setPromoteId('');
+      fetchUsers();
     } catch (err) {
-      setOutput(<div className="result-card error"><span className="result-title">Erreur :</span><p className="result-body">{err.message}</p></div>);
+      setPromoteMsg('Erreur réseau');
     }
   };
 
-  const handleDeleteUserSubmit = async (e) => {
-    e.preventDefault();
+  const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_BASE}/users/${userId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`${API_URL}/users`);
+      const data = await res.json();
+      if (Array.isArray(data)) setUsers(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchDeletedUsers = async () => {
+    try {
+      const res = await fetch(`${API_URL}/users/deleted`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur lors de la suppression');
-
-      setOutput(<div className="result-card success"><span className="result-title">Succès :</span><p className="result-body">{data.message}</p></div>);
-      setUserId('');
+      if (Array.isArray(data)) setDeletedUsers(data);
     } catch (err) {
-      setOutput(<div className="result-card error"><span className="result-title">Erreur :</span><p className="result-body">{err.message}</p></div>);
+      console.error(err);
     }
   };
 
-  return (
-    <div className="container">
-      <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <h1>Tableau de bord</h1>
-          {currentUser && <p style={{ color: '#4a5568' }}>Connecté en tant que : <strong>{currentUser.name}</strong> ({currentUser.role})</p>}
-        </div>
-        <button onClick={handleLogout} className="btn btn-out" >
-          Déconnexion
-        </button>
-      </header>
-
-      <div className="card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 15, marginBottom: 20 }}>
-        {/*<button onClick={getHour} className="btn btn-primary">Obtenir Heure</button>*/}
-        <button onClick={getUsers} className="btn btn-primary">Voir Utilisateurs</button>
-        <button onClick={getAllPosts} className="btn btn-primary">Voir Tous les Posts</button>
-        <button onClick={() => showAction('create_post')} className="btn btn-secondary">Créer un Post</button>
-        
-        {currentUser?.role === 'superadmin' && (
-          <>
-            <button onClick={() => showAction('promote_admin')} className="btn btn-secondary" >
-              Nommer un Admin
-            </button>
-            <button onClick={getDeletedUsers} className="btn btn-secondary" >
-              Corbeille / Restaurer
-            </button>
-          </>
-        )}
-
-        {(currentUser?.role === 'admin' || currentUser?.role === 'superadmin') && (
-          <button onClick={() => showAction('delete_user')} className="btn btn-danger">Supprimer User</button>
-        )}
-      </div>
-
-      {activeAction === 'create_post' && (
-        <div className="card form-card" style={{ marginBottom: 20 }}>
-          <h3>Créer un nouveau post</h3>
-          <form onSubmit={handleCreatePost}>
-            <label>Titre</label>
-            <input type="text" value={postTitle} onChange={(e) => setPostTitle(e.target.value)} required placeholder="Titre du post" />
-            <label>Contenu</label>
-            <textarea value={postContent} onChange={(e) => setPostContent(e.target.value)} required placeholder="Contenu du post" style={{ width: '100%', padding: 10, borderRadius: 6, marginBottom: 10 }} />
-            <button type="submit" className="btn btn-primary">Publier</button>
-          </form>
-        </div>
-      )}
-
-      {activeAction === 'promote_admin' && (
-        <div className="card form-card" style={{ marginBottom: 20 }}>
-          <h3>Attribuer le rôle Admin (SuperAdmin uniquement)</h3>
-          <form onSubmit={handlePromoteAdmin}>
-            <label>ID de l'utilisateur à passer Admin</label>
-            <input type="text" value={userId} onChange={(e) => setUserId(e.target.value)} required placeholder="ex: 2" />
-            <button type="submit" className="btn btn-primary" >Promouvoir Admin</button>
-          </form>
-        </div>
-      )}
-
-      {activeAction === 'delete_user' && (
-        <div className="card form-card" style={{ marginBottom: 20 }}>
-          <h3>Supprimer (Désactiver) un utilisateur</h3>
-          <form onSubmit={handleDeleteUserSubmit}>
-            <label>ID de l'utilisateur à supprimer</label>
-            <input type="text" value={userId} onChange={(e) => setUserId(e.target.value)} required placeholder="ex: 2" />
-            <button type="submit" className="btn btn-danger">Supprimer de la liste</button>
-          </form>
-        </div>
-      )}
-
-      {output && (
-        <div className="card result-container">
-          <h2>Résultat</h2>
-          <div className="output-box">{output}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function App() {
-  const [token, setToken] = useState(() => localStorage.getItem('token') || '');
-  const [currentUser, setCurrentUserState] = useState(() => {
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setError('');
+    const endpoint = isLogin ? '/auth/login' : '/auth/signup';
     try {
-      const raw = localStorage.getItem('currentUser');
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-
-  const setCurrentUser = (user) => {
-    setCurrentUserState(user);
-    try {
-      if (user) localStorage.setItem('currentUser', JSON.stringify(user));
-      else localStorage.removeItem('currentUser');
-    } catch (e) {}
-  };
-
-  useEffect(() => {
-   
-    if (token && !currentUser) {
-      try {
-        const parts = token.split('.');
-        if (parts.length >= 2) {
-          const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-          const json = decodeURIComponent(atob(base64).split('').map(function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          }).join(''));
-          const payload = JSON.parse(json);
-          if (payload && (payload.role || payload.email)) {
-            setCurrentUser(payload);
-          }
-        }
-      } catch (e) {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(authForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur d authentification');
       
-      }
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
+      // after successful login, show refreshed dashboard by default
+      setActiveTab('dashboard');
+      fetchPosts();
+    } catch (err) {
+      setError(err.message);
     }
-  }, [token, currentUser]);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setToken('');
+    setUser(null);
+  };
+
+  const handleCreatePost = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_URL}/posts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(newPost)
+      });
+      if (res.ok) {
+        setNewPost({ title: '', content: '' });
+        fetchPosts();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeletePost = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/posts/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) fetchPosts();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteUser = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/users/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchUsers();
+        if (user.role === 'superadmin') fetchDeletedUsers();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRestoreUser = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/users/${id}/restore`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchUsers();
+        fetchDeletedUsers();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="auth-wrapper">
+        <div className="auth-card">
+          <h2 style={{ textAlign: 'center' }}>{isLogin ? 'Connexion' : 'Créer un compte'}</h2>
+          
+          {error && <p style={{ color: 'red', fontSize: '0.8rem', marginBottom: '1rem' }}>{error}</p>}
+          <form onSubmit={handleAuth}>
+            {!isLogin && (
+              <div className="form-group">
+                <label>Nom complet</label>
+                <input
+                  type="text"
+                  className="input-field"
+                  value={authForm.name}
+                  onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                  required
+                />
+              </div>
+            )}
+            <div className="form-group">
+              <label>Adresse Email</label>
+              <input
+                type="email"
+                className="input-field"
+                value={authForm.email}
+                onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Mot de passe</label>
+              <input
+                type="password"
+                className="input-field"
+                value={authForm.password}
+                onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                required
+              />
+            </div>
+            <button type="submit" className="btn-primary">
+              {isLogin ? 'Login' : 'Sign Up'}
+            </button>
+          </form>
+          <div className="auth-toggle">
+            {isLogin ? "Vous n'avez pas de compte ? " : 'Déjà un compte ? '}
+            <span onClick={() => setIsLogin(!isLogin)}>
+              {isLogin ? "S'inscrire" : 'Se connecter'}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<AuthPage isSignUp={false} token={token} setToken={setToken} setCurrentUser={setCurrentUser} />} />
-        <Route path="/signup" element={<AuthPage isSignUp={true} token={token} setToken={setToken} setCurrentUser={setCurrentUser} />} />
-        <Route
-          path="/dashboard"
-          element={
-            token ? (
-              <Dashboard currentUser={currentUser} token={token} setToken={setToken} setCurrentUser={setCurrentUser} />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
-      </Routes>
-    </BrowserRouter>
+    <div className="dashboard-layout">
+      {/* Sidebar Gauche */}
+      <aside className="sidebar">
+        <div>
+          <div className="brand-logo"> Post Studio</div>
+          <nav className="nav-menu">
+            <button 
+              className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              Dashboard
+            </button>
+            {(user.role === 'admin' || user.role === 'superadmin') && (
+              <button 
+                className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
+                onClick={() => setActiveTab('users')}
+              >
+                Utilisateurs
+              </button>
+            )}
+            {user.role === 'superadmin' && (
+              <button 
+                className={`nav-item ${activeTab === 'trash' ? 'active' : ''}`}
+                onClick={() => setActiveTab('trash')}
+              >
+                Corbeille
+              </button>
+            )}
+            {user.role === 'superadmin' && (
+              <button
+                className={`nav-item ${activeTab === 'nommer' ? 'active' : ''}`}
+                onClick={() => setActiveTab('nommer')}
+              >
+                Nommer Admin
+              </button>
+            )}
+          </nav>
+        </div>
+        <div className="user-profile-widget">
+          <div className="user-info">
+            <span className="user-name">{user.name}</span>
+            <span className="user-role">{user.role}</span>
+          </div>
+          <button className="btn-danger-sm" onClick={handleLogout}>Déconnexion</button>
+        </div>
+      </aside>
+
+      {/* Panneau Central (Flux) */}
+      <main className="main-content">
+        <div className="content-header">
+          <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
+        </div>
+
+        {activeTab === 'dashboard' && (
+          <div>
+            {posts.map((post) => (
+              <div key={post.id} className="post-card">
+                <div className="post-header">
+                  <span className="post-title">{post.title}</span>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span className={`badge badge-${post.author_role}`}>{post.author_role}</span>
+                    <button className="btn-danger-sm" onClick={() => handleDeletePost(post.id)}>Supprimer</button>
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: '#475569' }}>{post.content}</p>
+                <span className="post-meta">Par {post.author_name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div>
+            {users.map((u) => (
+              <div key={u.id} className="post-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#334155' }}>ID: <strong>{u.id}</strong></div>
+                  <strong>{u.name}</strong> ({u.email})
+                  <div><span className={`badge badge-${u.role}`}>{u.role}</span></div>
+                </div>
+                {u.id !== user.id && (
+                  <button className="btn-danger-sm" onClick={() => handleDeleteUser(u.id)}>Soft Delete</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'trash' && (
+          <div>
+            {deletedUsers.map((u) => (
+              <div key={u.id} className="post-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#334155' }}>ID: <strong>{u.id}</strong></div>
+                  <strong>{u.name}</strong> ({u.email})
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Supprimé le: {u.deleted_at}</div>
+                </div>
+                <button className="btn-primary" style={{ width: 'auto', padding: '4px 12px' }} onClick={() => handleRestoreUser(u.id)}>Restaurer</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {activeTab === 'nommer' && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+            <p>Entrez l'ID de l'utilisateur à promouvoir en admin</p>
+            <form onSubmit={handlePromoteUser} style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                className="input-field"
+                value={promoteId}
+                onChange={(e) => setPromoteId(e.target.value)}
+                placeholder="ID utilisateur"
+              />
+              <button className="btn-primary" type="submit">Promouvoir</button>
+            </form>
+            {promoteMsg && (
+              <div style={{ marginTop: 8, color: promoteMsg.includes('succès') ? 'green' : 'red' }}>{promoteMsg}</div>
+            )}
+          </div>
+        )}
+      </main>
+
+      
+      <aside className="right-panel">
+        <div className="panel-title">Nouveau Post</div>
+        <form onSubmit={handleCreatePost}>
+          <div className="form-group">
+            <label>Titre</label>
+            <input
+              type="text"
+              className="input-field"
+              value={newPost.title}
+              onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Contenu</label>
+            <textarea
+              className="input-field"
+              rows="4"
+              value={newPost.content}
+              onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+            ></textarea>
+          </div>
+          <button type="submit" className="btn-primary">Publier</button>
+        </form>
+      </aside>
+    </div>
   );
 }
