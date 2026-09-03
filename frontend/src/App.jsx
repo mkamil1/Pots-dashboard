@@ -315,10 +315,10 @@ export default function App() {
           <div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
               <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: 6 }}>
-                <option value="name">Author name</option>
-                <option value="id">Author id</option>
-                <option value="email">Author email</option>
-                <option value="role">Author role</option>
+                <option value="name">name</option>
+                <option value="id">id</option>
+                <option value="email">email</option>
+                <option value="role">role</option>
               </select>
               <input className="input-field" placeholder={`Filter by ${filterType}`} value={filterValue} onChange={(e) => setFilterValue(e.target.value)} style={{ width: 240 }} />
               <button className="btn-primary" onClick={() => setFilterValue('')}>Clear</button>
