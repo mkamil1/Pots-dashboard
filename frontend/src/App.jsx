@@ -21,6 +21,9 @@ export default function App() {
   const [error, setError] = useState('');
   const [promoteId, setPromoteId] = useState('');
   const [promoteMsg, setPromoteMsg] = useState('');
+  // Sidebar button
+  const [isOpen, setIsOpen] = useState(false);
+  const toggleSidebar = () => {setIsOpen(!isOpen);};
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -245,9 +248,17 @@ export default function App() {
   }
 
   return (
+      
     <div className="dashboard-layout">
+       {/* The Side Button */}
+      <button 
+        className={`side-button ${isOpen ? 'active' : ''}`} 
+        onClick={toggleSidebar}
+      >
+        {isOpen ? '✕' : '☰'}
+      </button>
       {/* Sidebar Gauche */}
-      <aside className="sidebar">
+      <div className={`sidebar ${isOpen ? '' : 'collapsed'}`}>
         <div>
           <div className="brand-logo"> Post Studio</div>
           <nav className="nav-menu">
@@ -290,7 +301,7 @@ export default function App() {
           </div>
           <button className="btn-danger-sm" onClick={handleLogout}>Déconnexion</button>
         </div>
-      </aside>
+      </div>
 
       {/* Panneau Central (Flux) */}
       <main className="main-content">

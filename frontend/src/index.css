@@ -83,8 +83,8 @@ body {
 }
 
 .input-field:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15);
+  border-color: grey;
+  box-shadow: 0 0 0 3px rgba(255, 55, 55, 0.34);
 }
 
 .btn-primary {
@@ -125,11 +125,28 @@ body {
   background-color: #f8f9fa;
   padding: 12px;
   gap: 12px;
+} 
+
+/* The Fixed Side Button */
+.side-button {
+  position: fixed;
+  top: 50%;
+  left: 8px;
+  z-index: 1100;
+  background-color: black;
+  color: rgb(249, 249, 247);
+  border: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
+
 
 /* Sidebar Gauche */
 .sidebar {
   width: 240px;
+  min-width: 240px;
   background: var(--bg-card);
   border-radius: 12px;
   padding: 1.25rem;
@@ -138,8 +155,16 @@ body {
   justify-content: space-between;
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
+  height: calc(100vh - 24px);
+  transition: width 0.28s ease, padding 0.2s ease, margin 0.2s ease;
+  overflow: hidden;
 }
-
+.sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  border: none;
+}
 .brand-logo {
   font-size: 1.25rem;
   font-weight: 700;
