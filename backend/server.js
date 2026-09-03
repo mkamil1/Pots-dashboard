@@ -234,7 +234,7 @@ app.delete('/api/users/:id', authenticateToken, (req, res) => {
 
 app.get('/api/posts', (req, res) => {
   const query = `
-    SELECT posts.id, posts.title, posts.content, posts.user_id, users.role AS author_role, users.name AS author_name
+    SELECT posts.id, posts.title, posts.content, posts.user_id, users.role AS author_role, users.name AS author_name, users.email AS author_email
     FROM posts 
     JOIN users ON posts.user_id = users.id 
     WHERE posts.deleted_at IS NULL AND users.deleted_at IS NULL

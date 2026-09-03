@@ -24,6 +24,9 @@ export default function App() {
   // Sidebar button
   const [isOpen, setIsOpen] = useState(false);
   const toggleSidebar = () => {setIsOpen(!isOpen);};
+  // Post filters
+  const [filterType, setFilterType] = useState('name');
+  const [filterValue, setFilterValue] = useState('');
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -255,7 +258,7 @@ export default function App() {
         className={`side-button ${isOpen ? 'active' : ''}`} 
         onClick={toggleSidebar}
       >
-        {isOpen ? '✕' : '☰'}
+        {isOpen ? '✕' : '→'}
       </button>
       {/* Sidebar Gauche */}
       <div className={`sidebar ${isOpen ? '' : 'collapsed'}`}>
@@ -308,11 +311,31 @@ export default function App() {
         <div className="content-header">
           <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
         </div>
-
         {activeTab === 'dashboard' && (
           <div>
-            {posts.map((post) => (
-              <div key={post.id} className="post-card">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: 6 }}>
+                <option value="name">Author name</option>
+                <option value="id">Author id</option>
+                <option value="email">Author email</option>
+                <option value="role">Author role</option>
+              </select>
+              <input className="input-field" placeholder={`Filter by ${filterType}`} value={filterValue} onChange={(e) => setFilterValue(e.target.value)} style={{ width: 240 }} />
+              <button className="btn-primary" onClick={() => setFilterValue('')}>Clear</button>
+            </div>
+
+            {(() => {
+              const q = filterValue.trim().toLowerCase();
+              const filtered = q === '' ? posts : posts.filter((post) => {
+                if (filterType === 'name') return (post.author_name || '').toLowerCase().includes(q);
+                if (filterType === 'id') return String(post.user_id) === q || String(post.user_id).includes(q);
+                if (filterType === 'email') return (post.author_email || '').toLowerCase().includes(q);
+                if (filterType === 'role') return (post.author_role || '').toLowerCase().includes(q);
+                return true;
+              });
+
+              return filtered.map((post) => (
+                <div key={post.id} className="post-card">
                 <div className="post-header">
                   <span className="post-title">{post.title}</span>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -321,9 +344,10 @@ export default function App() {
                   </div>
                 </div>
                 <p style={{ fontSize: '0.875rem', color: '#475569' }}>{post.content}</p>
-                <span className="post-meta">Par {post.author_name}</span>
+                <span className="post-meta">Par {post.author_name} ({post.author_email})</span>
               </div>
-            ))}
+              ));
+            })()}
           </div>
         )}
 
