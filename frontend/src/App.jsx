@@ -52,6 +52,27 @@ export default function App() {
   useEffect(() => {
     fetchPosts();
     fetchUsers();
+
+    // Check server reset status; if server was reset at startup, clear localStorage once per session and reload
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/reset-status`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+        const data = await res.json();
+        if (data && data.reset) {
+          const handled = sessionStorage.getItem('resetHandled');
+          if (!handled) {
+            console.log('[client] server reset detected — clearing localStorage and reloading');
+            sessionStorage.setItem('resetHandled', '1');
+            localStorage.clear();
+            setToken('');
+            setUser(null);
+            location.reload();
+          }
+        }
+      } catch (e) {
+        console.error('Error checking reset-status', e);
+      }
+    })();
   }, []);
 
   useEffect(() => {
