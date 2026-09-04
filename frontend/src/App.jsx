@@ -75,46 +75,63 @@ export default function App() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (!user || !token) return;
+  const socketRef = React.useRef(null);
 
-    const socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling']
-    });
+  // Persistent socket connection (connect on mount) so all clients receive live events
+  useEffect(() => {
+    const socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+    socketRef.current = socket;
 
     socket.on('connect', () => {
-      socket.emit('authenticate', token);
+      console.log('[socket] connected', socket.id);
+      if (token) socket.emit('authenticate', token);
     });
 
+    socket.on('connect_error', (err) => {
+      console.error('[socket] connection error', err && err.message ? err.message : err);
+    });
+
+    // handle postDeleted globally
     socket.on('postDeleted', (data) => {
       const message = data?.message || 'Votre post a été supprimé';
       setNotification(message);
       fetchPosts();
     });
 
-    // When a new post is created, insert it into the current posts list so users see it live
+    // handle postCreated globally and insert into UI
     socket.on('postCreated', (post) => {
       try {
         setPosts((prev) => {
-          // avoid duplicating if the post is already present
           if (prev.some(p => p.id === post.id)) return prev;
           return [post, ...prev];
         });
       } catch (e) {
-        console.error('Error handling postCreated', e);
+        console.error('[socket] postCreated handler error', e);
       }
     });
 
-    socket.on('connect_error', (err) => {
-      console.error('Socket connection error:', err.message);
-    });
-
     return () => {
-      socket.off('postDeleted');
-      socket.off('postCreated');
-      socket.disconnect();
+      try {
+        socket.off('connect');
+        socket.off('connect_error');
+        socket.off('postDeleted');
+        socket.off('postCreated');
+        socket.disconnect();
+      } catch (e) {}
     };
-  }, [user, token]);
+  }, []);
+
+  // When token changes, (re)authenticate the socket if connected
+  useEffect(() => {
+    const s = socketRef.current;
+    if (s && s.connected && token) {
+      try {
+        s.emit('authenticate', token);
+      } catch (e) {
+        console.error('[socket] emit authenticate error', e);
+      }
+    }
+  }, [token]);
 
   useEffect(() => {
     if (!notification) return;

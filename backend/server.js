@@ -358,6 +358,7 @@ app.post('/api/posts', authenticateToken, (req, res) => {
         // Emit to all connected clients so they see the new post immediately
         try {
           io.emit('postCreated', row);
+          console.log('[ws] Emitted postCreated id=', row && row.id);
         } catch (emitErr) {
           console.error('Error emitting postCreated:', emitErr && emitErr.message ? emitErr.message : emitErr);
         }
