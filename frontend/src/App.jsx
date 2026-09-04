@@ -125,7 +125,31 @@ export default function App() {
     try {
       const res = await fetch(`${API_URL}/users`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
       const data = await res.json();
-      if (Array.isArray(data)) setUsers(data);
+      if (Array.isArray(data)) {
+        setUsers(data);
+
+        // If there's a saved logged-in user but that user no longer exists on the server,
+        // the server was likely reset: clear localStorage and reload so the UI reflects the reset.
+        const savedUserStr = localStorage.getItem('user');
+        const savedToken = localStorage.getItem('token');
+        if (savedUserStr && savedToken) {
+          try {
+            const savedUser = JSON.parse(savedUserStr);
+            const exists = data.some(u => u.id === savedUser.id);
+            if (!exists) {
+              console.log('[client] saved user not found on server — clearing localStorage and reloading');
+              localStorage.clear();
+              setToken('');
+              setUser(null);
+              // Force a reload so the browser fetches the updated frontend bundle and fresh state
+              location.reload();
+            }
+          } catch (e) {
+            // ignore parse errors
+            console.error('[client] error parsing saved user from localStorage', e);
+          }
+        }
+      }
     } catch (err) {
       console.error(err);
     }
