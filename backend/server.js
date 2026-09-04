@@ -14,7 +14,23 @@ app.use(cors());
 app.use(express.json());
 
 const SECRET_KEY = 'votre_secret_jwt';
-const db = new sqlite3.Database('./database.db');
+const fs = require('fs');
+const DB_PATH = process.env.DB_PATH || './database.db';
+
+// If RESET_DB is enabled, remove the database file before opening it so SQLite starts fresh
+const reset = process.env.RESET_DB === '1' || process.env.RESET_DB === 'true';
+if (reset) {
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      fs.unlinkSync(DB_PATH);
+      console.log('Existing database file removed to ensure clean reset:', DB_PATH);
+    }
+  } catch (err) {
+    console.error('Error removing existing database file during RESET_DB:', err && err.message ? err.message : err);
+  }
+}
+
+const db = new sqlite3.Database(DB_PATH);
 
 // In-memory map of userId => Set of socket ids (supports multiple client devices per user)
 const userSockets = {};
@@ -49,7 +65,6 @@ io.on('connection', (socket) => {
 
 
 db.serialize(() => {
-  const reset = process.env.RESET_DB === '1' || process.env.RESET_DB === 'true';
   const superAdminEmail = 'test@k.k';
 
   if (reset) {
