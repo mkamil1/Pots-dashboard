@@ -92,12 +92,26 @@ export default function App() {
       fetchPosts();
     });
 
+    // When a new post is created, insert it into the current posts list so users see it live
+    socket.on('postCreated', (post) => {
+      try {
+        setPosts((prev) => {
+          // avoid duplicating if the post is already present
+          if (prev.some(p => p.id === post.id)) return prev;
+          return [post, ...prev];
+        });
+      } catch (e) {
+        console.error('Error handling postCreated', e);
+      }
+    });
+
     socket.on('connect_error', (err) => {
       console.error('Socket connection error:', err.message);
     });
 
     return () => {
       socket.off('postDeleted');
+      socket.off('postCreated');
       socket.disconnect();
     };
   }, [user, token]);
