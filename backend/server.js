@@ -428,4 +428,19 @@ app.get('/api/reset-status', (req, res) => {
   res.json({ reset });
 });
 
+// Debug endpoint: show connected socket information and authenticated userSockets map
+app.get('/api/ws-status', (req, res) => {
+  try {
+    const sockets = Array.from(io.sockets.sockets.keys());
+    // userSockets maps userId -> Set(socketId)
+    const userMap = {};
+    for (const [uid, setOfSockets] of Object.entries(userSockets)) {
+      userMap[uid] = Array.from(setOfSockets);
+    }
+    res.json({ sockets, userMap, count: sockets.length });
+  } catch (e) {
+    res.status(500).json({ error: e && e.message ? e.message : String(e) });
+  }
+});
+
 server.listen(5002, '0.0.0.0', () => console.log('Serveur Backend démarré sur le port 5002'));
