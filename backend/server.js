@@ -337,7 +337,33 @@ app.post('/api/posts', authenticateToken, (req, res) => {
     [req.user.id, title, content],
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
-      res.status(201).json({ id: this.lastID, title, content, user_id: req.user.id });
+      const newPostId = this.lastID;
+
+      // Fetch the newly created post with author info so we can emit full object to clients
+      const postQuery = `
+        SELECT posts.id, posts.title, posts.content, posts.user_id, users.role AS author_role, users.name AS author_name, users.email AS author_email
+        FROM posts
+        JOIN users ON posts.user_id = users.id
+        WHERE posts.id = ?
+      `;
+
+      db.get(postQuery, [newPostId], (err2, row) => {
+        if (err2) {
+          console.error('Error fetching created post:', err2.message);
+          // still respond with basic info
+          res.status(201).json({ id: newPostId, title, content, user_id: req.user.id });
+          return;
+        }
+
+        // Emit to all connected clients so they see the new post immediately
+        try {
+          io.emit('postCreated', row);
+        } catch (emitErr) {
+          console.error('Error emitting postCreated:', emitErr && emitErr.message ? emitErr.message : emitErr);
+        }
+
+        res.status(201).json(row);
+      });
     }
   );
 });
