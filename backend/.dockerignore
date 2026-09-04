@@ -1,5 +1,6 @@
 node_modules
 database.db
+database.sqlite
 .env
 .DS_Store
 npm-debug.log
