@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 
-const API_URL = 'http://127.0.0.1:5002/api';
-const SOCKET_URL = 'http://127.0.0.1:5002';
+const API_URL = '/api';
+const SOCKET_URL = window.location.origin; // connect to same origin so nginx can proxy /socket.io to backend
 
 export default function App() {
   const navigate = useNavigate();
