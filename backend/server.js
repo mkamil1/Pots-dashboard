@@ -132,6 +132,41 @@ db.serialize(() => {
       }
     });
   }
+
+  // Aggressive cleanup (last-resort): remove all posts and all users except the superadmin
+  // This guarantees that after startup the DB contains only the superadmin user and no posts.
+  try {
+    db.run('DELETE FROM posts', (err) => {
+      if (err) console.error('Aggressive cleanup: error deleting posts:', err.message);
+      else console.log('Aggressive cleanup: all posts removed.');
+    });
+
+    db.run('DELETE FROM users WHERE email != ?', [superAdminEmail], function (err) {
+      if (err) {
+        console.error('Aggressive cleanup: error deleting users:', err.message);
+        return;
+      }
+      console.log(`Aggressive cleanup: removed users (kept superadmin ${superAdminEmail}).`);
+
+      // Ensure superadmin exists; if not, create it
+      db.get('SELECT id FROM users WHERE email = ?', [superAdminEmail], (err, row) => {
+        if (err) return console.error('Error checking superadmin after cleanup:', err.message);
+        if (!row) {
+          bcrypt.hash('test', 10).then((hashedPassword) => {
+            db.run(
+              'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+              ['Super Admin', superAdminEmail, hashedPassword, 'superadmin'],
+              () => console.log('SuperAdmin created by aggressive cleanup.')
+            );
+          }).catch((e) => console.error('Error hashing superadmin password:', e));
+        } else {
+          console.log('SuperAdmin present after aggressive cleanup.');
+        }
+      });
+    });
+  } catch (e) {
+    console.error('Aggressive cleanup failed:', e && e.message ? e.message : e);
+  }
 });
 
 
