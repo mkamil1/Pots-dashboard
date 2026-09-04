@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { io } from 'socket.io-client';
 
-const API_URL = 'http://localhost:5002/api';
+const API_URL = 'http://127.0.0.1:5002/api';
+const SOCKET_URL = 'http://127.0.0.1:5002';
 
 export default function App() {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [promoteId, setPromoteId] = useState('');
   const [promoteMsg, setPromoteMsg] = useState('');
+  const [notification, setNotification] = useState('');
   // Sidebar button
   const [isOpen, setIsOpen] = useState(false);
   const toggleSidebar = () => {setIsOpen(!isOpen);};
@@ -45,9 +48,48 @@ export default function App() {
     }
   }, [user]);
 
+  // On mount, force refresh from server to avoid stale cached data in the browser
+  useEffect(() => {
+    fetchPosts();
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    if (!user || !token) return;
+
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('connect', () => {
+      socket.emit('authenticate', token);
+    });
+
+    socket.on('postDeleted', (data) => {
+      const message = data?.message || 'Votre post a été supprimé';
+      setNotification(message);
+      fetchPosts();
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message);
+    });
+
+    return () => {
+      socket.off('postDeleted');
+      socket.disconnect();
+    };
+  }, [user, token]);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timer = setTimeout(() => setNotification(''), 5000);
+    return () => clearTimeout(timer);
+  }, [notification]);
+
   const fetchPosts = async () => {
     try {
-      const res = await fetch(`${API_URL}/posts`);
+      const res = await fetch(`${API_URL}/posts`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
       const data = await res.json();
       if (Array.isArray(data)) setPosts(data);
     } catch (err) {
@@ -81,7 +123,7 @@ export default function App() {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch(`${API_URL}/users`);
+      const res = await fetch(`${API_URL}/users`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
       const data = await res.json();
       if (Array.isArray(data)) setUsers(data);
     } catch (err) {
@@ -389,6 +431,19 @@ export default function App() {
         <div className="content-header">
           <h2>{getTitleFromPath(location.pathname)}</h2>
         </div>
+        {notification && (
+          <div style={{
+            background: '#dcfce7',
+            color: '#166534',
+            border: '1px solid #86efac',
+            borderRadius: 8,
+            padding: '10px 12px',
+            marginBottom: 12,
+            fontWeight: 600
+          }}>
+            {notification}
+          </div>
+        )}
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardView />} />
