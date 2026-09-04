@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 
 const API_URL = 'http://localhost:5002/api';
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [isLogin, setIsLogin] = useState(true);
   
-  // Dynamic Views
-  const [activeTab, setActiveTab] = useState('dashboard');
   
-  // Data States
   const [posts, setPosts] = useState([]);
   const [users, setUsers] = useState([]);
   const [deletedUsers, setDeletedUsers] = useState([]);
@@ -118,8 +118,8 @@ export default function App() {
       localStorage.setItem('user', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
-      // after successful login, show refreshed dashboard by default
-      setActiveTab('dashboard');
+      // after successful login, navigate to dashboard
+      navigate('/dashboard');
       fetchPosts();
     } catch (err) {
       setError(err.message);
@@ -131,6 +131,7 @@ export default function App() {
     localStorage.removeItem('user');
     setToken('');
     setUser(null);
+    navigate('/');
   };
 
   const handleCreatePost = async (e) => {
@@ -250,8 +251,105 @@ export default function App() {
     );
   }
 
+  const getTitleFromPath = (path) => {
+    if (path.startsWith('/users')) return 'Utilisateurs';
+    if (path.startsWith('/trash')) return 'Corbeille';
+    if (path.startsWith('/nommer')) return 'Nommer';
+    return 'Dashboard';
+  };
+
+  const DashboardView = () => (
+    <div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+        <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: 6 }}>
+          <option value="name">name</option>
+          <option value="id">id</option>
+          <option value="email">email</option>
+          <option value="role">role</option>
+        </select>
+        <input className="input-field" placeholder={`Filter by ${filterType}`} value={filterValue} onChange={(e) => setFilterValue(e.target.value)} style={{ width: 240 }} />
+        <button className="btn-primary" onClick={() => setFilterValue('')}>Clear</button>
+      </div>
+
+      {(() => {
+        const q = filterValue.trim().toLowerCase();
+        const filtered = q === '' ? posts : posts.filter((post) => {
+          if (filterType === 'name') return (post.author_name || '').toLowerCase().includes(q);
+          if (filterType === 'id') return String(post.user_id) === q || String(post.user_id).includes(q);
+          if (filterType === 'email') return (post.author_email || '').toLowerCase().includes(q);
+          if (filterType === 'role') return (post.author_role || '').toLowerCase().includes(q);
+          return true;
+        });
+
+        return filtered.map((post) => (
+          <div key={post.id} className="post-card">
+            <div className="post-header">
+              <span className="post-title">{post.title}</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span className={`badge badge-${post.author_role}`}>{post.author_role}</span>
+                <button className="btn-danger-sm" onClick={() => handleDeletePost(post.id)}>Supprimer</button>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.875rem', color: '#475569' }}>{post.content}</p>
+            <span className="post-meta">Par {post.author_name} ({post.author_email})</span>
+          </div>
+        ));
+      })()}
+    </div>
+  );
+
+  const UsersView = () => (
+    <div>
+      {users.map((u) => (
+        <div key={u.id} className="post-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '0.875rem', color: '#334155' }}>ID: <strong>{u.id}</strong></div>
+            <strong>{u.name}</strong> ({u.email})
+            <div><span className={`badge badge-${u.role}`}>{u.role}</span></div>
+          </div>
+          {u.id !== user.id && (
+            <button className="btn-danger-sm" onClick={() => handleDeleteUser(u.id)}>Soft Delete</button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  const TrashView = () => (
+    <div>
+      {deletedUsers.map((u) => (
+        <div key={u.id} className="post-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '0.875rem', color: '#334155' }}>ID: <strong>{u.id}</strong></div>
+            <strong>{u.name}</strong> ({u.email})
+            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Supprimé le: {u.deleted_at}</div>
+          </div>
+          <button className="btn-primary" style={{ width: 'auto', padding: '4px 12px' }} onClick={() => handleRestoreUser(u.id)}>Restaurer</button>
+        </div>
+      ))}
+    </div>
+  );
+
+  const NommerView = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+      <p>Entrez l'ID de l'utilisateur à promouvoir en admin</p>
+      <form onSubmit={handlePromoteUser} style={{ display: 'flex', gap: '8px' }}>
+        <input
+          type="text"
+          className="input-field"
+          value={promoteId}
+          onChange={(e) => setPromoteId(e.target.value)}
+          placeholder="ID utilisateur"
+        />
+        <button className="btn-primary" type="submit">Promouvoir</button>
+      </form>
+      {promoteMsg && (
+        <div style={{ marginTop: 8, color: promoteMsg.includes('succès') ? 'green' : 'red' }}>{promoteMsg}</div>
+      )}
+    </div>
+  );
+
   return (
-      
     <div className="dashboard-layout">
        {/* The Side Button */}
       <button 
@@ -265,35 +363,15 @@ export default function App() {
         <div>
           <div className="brand-logo"> Post Studio</div>
           <nav className="nav-menu">
-            <button 
-              className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dashboard')}
-            >
-              Dashboard
-            </button>
+            <Link className={`nav-item ${location.pathname === '/dashboard' ? 'active' : ''}`} to="/dashboard">Dashboard</Link>
             {(user.role === 'admin' || user.role === 'superadmin') && (
-              <button 
-                className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
-                onClick={() => setActiveTab('users')}
-              >
-                Utilisateurs
-              </button>
+              <Link className={`nav-item ${location.pathname === '/users' ? 'active' : ''}`} to="/users">Utilisateurs</Link>
             )}
             {user.role === 'superadmin' && (
-              <button 
-                className={`nav-item ${activeTab === 'trash' ? 'active' : ''}`}
-                onClick={() => setActiveTab('trash')}
-              >
-                Corbeille
-              </button>
+              <Link className={`nav-item ${location.pathname === '/trash' ? 'active' : ''}`} to="/trash">Corbeille</Link>
             )}
             {user.role === 'superadmin' && (
-              <button
-                className={`nav-item ${activeTab === 'nommer' ? 'active' : ''}`}
-                onClick={() => setActiveTab('nommer')}
-              >
-                Nommer Admin
-              </button>
+              <Link className={`nav-item ${location.pathname === '/nommer' ? 'active' : ''}`} to="/nommer">Nommer Admin</Link>
             )}
           </nav>
         </div>
@@ -309,98 +387,15 @@ export default function App() {
       {/* Panneau Central (Flux) */}
       <main className="main-content">
         <div className="content-header">
-          <h2>{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h2>
+          <h2>{getTitleFromPath(location.pathname)}</h2>
         </div>
-        {activeTab === 'dashboard' && (
-          <div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} style={{ padding: 6 }}>
-                <option value="name">name</option>
-                <option value="id">id</option>
-                <option value="email">email</option>
-                <option value="role">role</option>
-              </select>
-              <input className="input-field" placeholder={`Filter by ${filterType}`} value={filterValue} onChange={(e) => setFilterValue(e.target.value)} style={{ width: 240 }} />
-              <button className="btn-primary" onClick={() => setFilterValue('')}>Clear</button>
-            </div>
-
-            {(() => {
-              const q = filterValue.trim().toLowerCase();
-              const filtered = q === '' ? posts : posts.filter((post) => {
-                if (filterType === 'name') return (post.author_name || '').toLowerCase().includes(q);
-                if (filterType === 'id') return String(post.user_id) === q || String(post.user_id).includes(q);
-                if (filterType === 'email') return (post.author_email || '').toLowerCase().includes(q);
-                if (filterType === 'role') return (post.author_role || '').toLowerCase().includes(q);
-                return true;
-              });
-
-              return filtered.map((post) => (
-                <div key={post.id} className="post-card">
-                <div className="post-header">
-                  <span className="post-title">{post.title}</span>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span className={`badge badge-${post.author_role}`}>{post.author_role}</span>
-                    <button className="btn-danger-sm" onClick={() => handleDeletePost(post.id)}>Supprimer</button>
-                  </div>
-                </div>
-                <p style={{ fontSize: '0.875rem', color: '#475569' }}>{post.content}</p>
-                <span className="post-meta">Par {post.author_name} ({post.author_email})</span>
-              </div>
-              ));
-            })()}
-          </div>
-        )}
-
-        {activeTab === 'users' && (
-          <div>
-            {users.map((u) => (
-              <div key={u.id} className="post-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '0.875rem', color: '#334155' }}>ID: <strong>{u.id}</strong></div>
-                  <strong>{u.name}</strong> ({u.email})
-                  <div><span className={`badge badge-${u.role}`}>{u.role}</span></div>
-                </div>
-                {u.id !== user.id && (
-                  <button className="btn-danger-sm" onClick={() => handleDeleteUser(u.id)}>Soft Delete</button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'trash' && (
-          <div>
-            {deletedUsers.map((u) => (
-              <div key={u.id} className="post-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: '0.875rem', color: '#334155' }}>ID: <strong>{u.id}</strong></div>
-                  <strong>{u.name}</strong> ({u.email})
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Supprimé le: {u.deleted_at}</div>
-                </div>
-                <button className="btn-primary" style={{ width: 'auto', padding: '4px 12px' }} onClick={() => handleRestoreUser(u.id)}>Restaurer</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'nommer' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-            <p>Entrez l'ID de l'utilisateur à promouvoir en admin</p>
-            <form onSubmit={handlePromoteUser} style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                className="input-field"
-                value={promoteId}
-                onChange={(e) => setPromoteId(e.target.value)}
-                placeholder="ID utilisateur"
-              />
-              <button className="btn-primary" type="submit">Promouvoir</button>
-            </form>
-            {promoteMsg && (
-              <div style={{ marginTop: 8, color: promoteMsg.includes('succès') ? 'green' : 'red' }}>{promoteMsg}</div>
-            )}
-          </div>
-        )}
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardView />} />
+          <Route path="/users" element={user && (user.role === 'admin' || user.role === 'superadmin') ? <UsersView /> : <div>Accès refusé</div>} />
+          <Route path="/trash" element={user && user.role === 'superadmin' ? <TrashView /> : <div>Accès refusé</div>} />
+          <Route path="/nommer" element={user && user.role === 'superadmin' ? <NommerView /> : <div>Accès refusé</div>} />
+        </Routes>
       </main>
 
       
