@@ -3,14 +3,49 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const jwt = require('jwt-simple');
 const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
 app.use(express.json());
 
 const SECRET_KEY = 'votre_secret_jwt';
 const db = new sqlite3.Database('./database.db');
+
+// In-memory map of userId => Set of socket ids (supports multiple client devices per user)
+const userSockets = {};
+
+io.on('connection', (socket) => {
+  console.log('[ws] socket connected:', socket.id);
+
+  // client should emit 'authenticate' with their JWT token after connecting
+  socket.on('authenticate', (token) => {
+    try {
+      const payload = jwt.decode(token, SECRET_KEY);
+      const uid = payload && payload.id;
+      if (!uid) return;
+      socket.userId = uid;
+      if (!userSockets[uid]) userSockets[uid] = new Set();
+      userSockets[uid].add(socket.id);
+      console.log(`[ws] socket ${socket.id} authenticated as user ${uid}`);
+    } catch (err) {
+      console.error('[ws] authenticate error:', err && err.message ? err.message : err);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    const uid = socket.userId;
+    if (uid && userSockets[uid]) {
+      userSockets[uid].delete(socket.id);
+      if (userSockets[uid].size === 0) delete userSockets[uid];
+    }
+    console.log('[ws] socket disconnected:', socket.id);
+  });
+});
 
 
 db.serialize(() => {
@@ -291,10 +326,24 @@ app.delete('/api/posts/:id', authenticateToken, (req, res) => {
       [postId],
       function (err) {
         if (err) return res.status(500).json({ error: err.message });
+
+        // Notify the post author via WebSocket if they are connected
+        try {
+          const authorId = post.user_id;
+          const sockets = userSockets[authorId];
+          if (sockets) {
+            for (const sid of sockets) {
+              io.to(sid).emit('postDeleted', { postId: Number(postId), message: 'Votre post a été supprimé' });
+            }
+          }
+        } catch (notifyErr) {
+          console.error('[ws] notify error:', notifyErr && notifyErr.message ? notifyErr.message : notifyErr);
+        }
+
         res.json({ message: 'Post supprimé (soft delete) avec succès' });
       }
     );
   });
 });
 
-app.listen(5002, '0.0.0.0', () => console.log('Serveur Backend démarré sur le port 5002'));
+server.listen(5002, '0.0.0.0', () => console.log('Serveur Backend démarré sur le port 5002'));
