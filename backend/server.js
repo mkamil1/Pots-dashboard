@@ -361,4 +361,9 @@ app.delete('/api/posts/:id', authenticateToken, (req, res) => {
   });
 });
 
+// Expose reset status so clients can detect when the server performed a RESET_DB at startup
+app.get('/api/reset-status', (req, res) => {
+  res.json({ reset });
+});
+
 server.listen(5002, '0.0.0.0', () => console.log('Serveur Backend démarré sur le port 5002'));
